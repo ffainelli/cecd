@@ -29,24 +29,12 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
+#include "libcec.h"
+
 #define RUNNING_DIR	"/tmp"
 #define LOCK_FILE	"/var/lock/cecd.lock"
 #define LOG_FILE	"/var/log/cecd.log"
 #define CEC_DEVICE	"/dev/cec/0"
-
-enum {
-	CEC_ENABLE,
-	CEC_SET_LOGICAL_ADDRESS,
-	CEC_SET_POWER_STATUS,
-	CEC_SEND_MESSAGE,
-	CEC_RCV_MESSAGE,
-};
-
-typedef struct {
-	unsigned char*		buf;
-	unsigned char		len;
-} cec_msg;
-
 
 static FILE* logfile = NULL;
 static int lock_fd;
@@ -146,9 +134,9 @@ void daemonize(void)
 
 int main(int argc, char** argv)
 {
-	int cec_dev, len, ret_val = 0;
+	int len, ret_val = 0;
 	unsigned char buffer[128];
-	cec_msg msg = {buffer, 128};
+	libcec_device_handle* handle;
 
 	daemonize();
 
@@ -159,27 +147,21 @@ int main(int argc, char** argv)
 	fprintf(logfile, "cecd started.\n");
 	fflush(logfile);
 
-	cec_dev = open(CEC_DEVICE, 0);
-	if (cec_dev < 0) {
-		fprintf(logfile, "cannot open CEC device %s\n", CEC_DEVICE);
+	libcec_set_logging(LIBCEC_LOG_LEVEL_DEBUG, logfile);
+	libcec_init();
+	if (libcec_open(CEC_DEVICE, &handle) <0) {
+		fprintf(logfile, "cannot open CEC device\n");
 		goto out;
 	}
 
-	ret_val = ioctl(cec_dev, CEC_ENABLE, 1);
-	if (ret_val) {
-		fprintf(logfile, "cannot enable CEC device\n");
-		goto out1;
-	}
-
 	// Per the CEC spec, logical addresses 4, 8, and 11 are reserved for playback devices
-	ret_val = ioctl(cec_dev, CEC_SET_LOGICAL_ADDRESS, 4);
-	if (ret_val) {
+	if (libcec_set_logical_address(handle, 4) < 0) {
 		fprintf(stderr, "failed to set CEC logical address\n");
 		goto out1;
 	}
 
 	while(1) {
-		len = ioctl(cec_dev, CEC_RCV_MESSAGE, &msg);
+		len = libcec_receive_message(handle, buffer, 128);
 		if (len <= 0) {
 			fprintf(logfile, "Could not read message (error %d)\n", len);
 			goto out1;
@@ -188,8 +170,9 @@ int main(int argc, char** argv)
 	}
 
 out1:
-	close(cec_dev);
+	libcec_close(handle);
 out:
+	libcec_exit();
 	close(lock_fd);
 	unlink(LOCK_FILE);
 	fprintf(logfile, "cecd stopped.\n");
