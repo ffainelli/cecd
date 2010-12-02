@@ -1,0 +1,12 @@
+lib_LTLIBRARIES = libcec.la
+
+CEC_BACKEND_SRC =
+CEC_BACKEND_SRC += linux_realtek_soc.c
+EXTRA_DIST = $(CEC_BACKEND_SRC)
+
+libcec_la_CFLAGS = $(VISIBILITY_CFLAGS) $(AM_CFLAGS)
+libcec_la_LDFLAGS = $(LTLDFLAGS)
+libcec_la_SOURCES = libceci.h libcec.c $(CEC_BACKEND_SRC)
+
+hdrdir = $(includedir)/libcec
+hdr_HEADERS = libcec.h
