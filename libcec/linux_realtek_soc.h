@@ -17,12 +17,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-struct realtek_device_handle_priv {
-	int cec_dev;
-	int i2c_dev;
+/* from drivers/cec/core/cec_dev.h */
+enum {
+	CEC_ENABLE,
+	CEC_SET_LOGICAL_ADDRESS,
+	CEC_SET_POWER_STATUS,
+	CEC_SEND_MESSAGE,
+	CEC_RCV_MESSAGE,
 };
 
-static inline struct realtek_device_handle_priv *__device_handle_priv(struct libcec_device_handle *handle)
+typedef struct {
+	unsigned char*		buf;
+	unsigned char		len;
+} cec_msg;
+
+typedef struct {
+	int cec_dev;
+	int i2c_dev;
+} realtek_device_handle_priv;
+
+static inline realtek_device_handle_priv* __device_handle_priv(libcec_device_handle *handle)
 {
-	return (struct realtek_device_handle_priv *) handle->priv;
+	return (realtek_device_handle_priv*) handle->priv;
 }
