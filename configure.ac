@@ -36,7 +36,7 @@ AM_PROG_CC_C_O
 AC_MSG_CHECKING([operating system])
 case $host in
 *-linux*)
-	os="Linux"
+	os="linux"
 	AM_CFLAGS="-std=gnu99"
 	;;
 *)
@@ -54,16 +54,14 @@ esac
 AC_SUBST(PC_LIBS_PRIVATE)
 LIBS="${LIBS} ${PC_LIBS_PRIVATE}"
 
-AM_CONDITIONAL(OS_LINUX, test $os = Linux)
+AM_CONDITIONAL([OS_LINUX], [test "x$os" = "xlinux"])
 
 # Build daemon?
 AC_ARG_ENABLE([build_deamon], [AS_HELP_STRING([--enable-daemon],
 	[Build cec daemon (cecd, default y)])],
 	[enable_daemon=$enableval],
 	[enable_daemon='yes'])
-if test "x$enable_daemon" != "xno"; then
-	AM_CONDITIONAL([BUILD_CECD], [test "x$enable_daemon" = "xyes"])
-fi
+AM_CONDITIONAL([BUILD_CECD], [test "x$enable_daemon" = "xyes"])
 
 # Implementation backend
 AC_ARG_ENABLE([realtek], [AS_HELP_STRING([--enable-realtek],
@@ -73,6 +71,7 @@ AC_ARG_ENABLE([realtek], [AS_HELP_STRING([--enable-realtek],
 if test "x$enable_realtek" != "xno"; then
 	AC_DEFINE([LINUX_REALTEK_SOC], 1, [Realtek SoC CEC driver support])
 fi
+AM_CONDITIONAL([LINUX_REALTEK_SOC], [test "x$enable_realtek" != "xno"])
 
 # Logging
 AC_ARG_ENABLE([log], [AS_HELP_STRING([--disable-log],
