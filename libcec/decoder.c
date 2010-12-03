@@ -82,7 +82,7 @@ static char* msg_description[63] = {
 	"Set Menu Language",			// 0x32		14
 	"Clear Analogue Timer",			// 0x33		15
 	"Set Analogue Timer",			// 0x34		16
-	"Timer Status"					// 0x35		17
+	"Timer Status",					// 0x35		17
 	"Standby",						// 0x36		18
 	"Play",							// 0x41		19
 	"Deck Control",					// 0x42		20
@@ -92,7 +92,7 @@ static char* msg_description[63] = {
 	"Give OSD Name",				// 0x46		24
 	"Set OSD Name",					// 0x47		25
 	"Set OSD String",				// 0x64		26
-	"Set Timer Program Title"		// 0x67		27
+	"Set Timer Program Title",		// 0x67		27
 	"System Audio Mode Request",	// 0x70		28
 	"Give Audio Status",			// 0x71		29
 	"Set System Audio Mode",		// 0x72		30
@@ -120,7 +120,7 @@ static char* msg_description[63] = {
 	"Select Digital Service",		// 0x93		52
 	"Set Digital Timer",			// 0x97		53
 	"Clear Digital Timer",			// 0x99		54
-	"Set Audio Rate"				// 0x9A		55
+	"Set Audio Rate",				// 0x9A		55
 	"Inactive Source",				// 0x9D		56
 	"CEC Version",					// 0x9E		57
 	"Get CEC Version",				// 0x9F		58
@@ -152,7 +152,7 @@ static uint8_t msg_index[256] = {
 
 
 
-static void display_buffer_hex(uint8_t *buffer, size_t length)
+static void display_buffer_hex(const char *function, uint8_t *buffer, size_t length)
 {
 	size_t i;
 
@@ -162,7 +162,7 @@ static void display_buffer_hex(uint8_t *buffer, size_t length)
 
 	for (i=0; i<length; i++) {
 		if (!(i%0x10))
-			fprintf(ceci_logger, "  ");
+			fprintf(ceci_logger, "libcec:info [%s]    ", function);
 		fprintf(ceci_logger, " %02X", buffer[i]);
 	}
 	fprintf(ceci_logger, "\n");
@@ -182,8 +182,7 @@ int libcec_decode_message(uint8_t* message, size_t length)
 		return LIBCEC_ERROR_INVALID_PARAM;
 	}
 
-	display_buffer_hex(message, length);
-	ceci_info("  %1X -> %1X: OPCODE %02X", src = message[0] >> 4, dst = message[0] & 0x0F, message[1]);
+	display_buffer_hex(__FUNCTION__, message, length);
 	if (msg_length[message[1]] == -1) {
 		// Unsupported
 		ceci_warn("unsupported Opcode: %02X", message[1]);
@@ -194,7 +193,8 @@ int libcec_decode_message(uint8_t* message, size_t length)
 		  ceci_warn("invalid payload length for opcode: %02X", message[1]);
 		  return LIBCEC_ERROR_INVALID_PARAM;
 	}
-	ceci_info("    <%s>", msg_description[msg_index[message[1]]]);
+	ceci_info("  o %1X->%1X: <%s>", src = message[0] >> 4, dst = message[0] & 0x0F, 
+			  msg_description[msg_index[message[1]]]);
 #if 0
 	switch(message[1]) {
 	case 0x82:	// Active Source
