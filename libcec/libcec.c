@@ -37,8 +37,8 @@ const libcec_version libcec_version_internal = {
 	LIBCEC_VERSION_MAJOR, LIBCEC_VERSION_MINOR,
 	LIBCEC_VERSION_MICRO, LIBCEC_VERSION_NANO };
 
-static FILE* logger = NULL;
-static int global_log_level = LIBCEC_LOG_LEVEL_INFO;
+FILE* ceci_logger = NULL;
+int ceci_global_log_level = LIBCEC_LOG_LEVEL_INFO;
 
 /*
  * Set the logging level and destination.
@@ -49,19 +49,19 @@ static int global_log_level = LIBCEC_LOG_LEVEL_INFO;
 DEFAULT_VISIBILITY
 void libcec_set_logging(int level, FILE* stream)
 {
-	global_log_level = level;
+	ceci_global_log_level = level;
 	if (stream == NULL) {
-		logger = stderr;
+		ceci_logger = stderr;
 	} else {
-		logger = stream;
+		ceci_logger = stream;
 	}
 }
 
 DEFAULT_VISIBILITY
 int libcec_init(void)
 {
-	if (logger == NULL) {
-		logger = stderr;
+	if (ceci_logger == NULL) {
+		ceci_logger = stderr;
 	}
 	return ceci_backend->init();
 }
@@ -156,7 +156,7 @@ void ceci_log_v(enum libcec_log_level level, const char *function,
 	const char *prefix;
 
 #ifndef ENABLE_DEBUG_LOGGING
-	if (level < global_log_level)
+	if (level < ceci_global_log_level)
 		return;
 #endif
 
@@ -178,10 +178,10 @@ void ceci_log_v(enum libcec_log_level level, const char *function,
 		break;
 	}
 
-	fprintf(logger, "libcec:%s [%s] ", prefix, function);
-	vfprintf(logger, format, args);
-	fprintf(logger, "\n");
-	fflush(logger);
+	fprintf(ceci_logger, "libcec:%s [%s] ", prefix, function);
+	vfprintf(ceci_logger, format, args);
+	fprintf(ceci_logger, "\n");
+	fflush(ceci_logger);
 }
 
 void ceci_log(enum libcec_log_level level, const char *function, const char *format, ...)

@@ -71,8 +71,9 @@ typedef struct {
 	size_t device_handle_priv_size;
 } _ceci_backend ;
 
+extern FILE* ceci_logger;
+extern int ceci_global_log_level;
 extern const _ceci_backend* const ceci_backend;
-
 extern const _ceci_backend linux_realtek_soc_backend;
 
 #endif

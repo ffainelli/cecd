@@ -98,6 +98,7 @@ int libcec_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t lengt
 int libcec_set_logical_address(libcec_device_handle* handle, uint8_t logical_address);
 int libcec_send_message(libcec_device_handle* handle, uint8_t* buffer, size_t length);
 int libcec_receive_message(libcec_device_handle* handle, uint8_t* buffer, size_t length);
+int libcec_decode_message(uint8_t* message, size_t length);
 
 #ifdef __cplusplus
 }

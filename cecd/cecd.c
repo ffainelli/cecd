@@ -166,7 +166,7 @@ int main(int argc, char** argv)
 			fprintf(logfile, "Could not read message (error %d)\n", len);
 			goto out1;
 		}
-		display_buffer_hex(buffer, (unsigned)len);
+		libcec_decode_message(buffer, len);
 	}
 
 out1:
