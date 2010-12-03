@@ -39,19 +39,6 @@
 static FILE* logfile = NULL;
 static int lock_fd;
 
-void display_buffer_hex(unsigned char *buffer, unsigned size)
-{
-	unsigned i;
-
-	for (i=0; i<size; i++) {
-		if (!(i%0x10))
-			fprintf(logfile, "  ");
-		fprintf(logfile, " %02X", buffer[i]);
-	}
-	fprintf(logfile, "\n");
-	fflush(logfile);
-}
-
 void signal_handler(int sig)
 {
 	switch(sig) {

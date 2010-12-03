@@ -152,7 +152,7 @@ static uint8_t msg_index[256] = {
 
 
 
-void display_buffer_hex(uint8_t *buffer, size_t length)
+static void display_buffer_hex(uint8_t *buffer, size_t length)
 {
 	size_t i;
 
