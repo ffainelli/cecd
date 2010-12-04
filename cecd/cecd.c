@@ -154,6 +154,66 @@ int main(int argc, char** argv)
 			goto out1;
 		}
 		libcec_decode_message(buffer, len);
+#define XTREAMER_TEST
+#ifdef XTREAMER_TEST
+		buffer[0] = 0x40;	// 4->0
+		switch(buffer[1]) {
+		case 0x46:	// Give OSD Name
+			buffer[1] = 0x47;	// Set OSD Name
+			buffer[2] = 'X';
+			buffer[3] = 't';
+			buffer[4] = 'r';
+			buffer[5] = 'e';
+			buffer[6] = 'a';
+			buffer[7] = 'm';
+			buffer[8] = 'e';
+			buffer[9] = 'r';
+			buffer[10] = ' ';
+			buffer[11] = 'P';
+			buffer[12] = 'r';
+			buffer[13] = 'o';
+			len = 14;
+			break;
+		case 0x8C:	// Give Device Vendor ID
+			buffer[1] = 0x87;	// Report Vendor ID
+			buffer[2] = 0x00;
+			buffer[3] = 0x1C;
+			buffer[4] = 0x85;	// Eunicorn Korea
+			len = 5;
+			break;
+		case 0x8F:	// Give Device Power Status
+			buffer[1] = 0x90;	// Power Status
+			buffer[2] = 0x00;	// ON
+			len = 3;
+			break;
+		case 0x9F:	// Get CEC Version
+			buffer[1] = 0x9E;	// CEC Version
+			buffer[2] = 0x04;	// version 1.3a
+			len = 3;
+			break;
+		case 0x87:	// Device Vendor ID is a good time to send a request
+			buffer[1] = 64;	// Set OSD String
+			buffer[2] = 0;
+			buffer[3] = 'H';
+			buffer[4] = 'e';
+			buffer[5] = 'l';
+			buffer[6] = 'l';
+			buffer[7] = 'o';
+			buffer[8] = '!';
+			len = 9;
+			break;
+		default:
+			len = 0;
+			break;
+		}
+		if (len) {
+			if (libcec_send_message(handle, buffer, len)) {
+				fprintf(logfile, "Could not send message\n");
+				goto out1;
+			}
+			libcec_decode_message(buffer, len);
+		}
+#endif
 	}
 
 out1:

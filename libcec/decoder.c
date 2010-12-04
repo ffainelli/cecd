@@ -182,7 +182,6 @@ int libcec_decode_message(uint8_t* message, size_t length)
 		return LIBCEC_ERROR_INVALID_PARAM;
 	}
 
-	display_buffer_hex(__FUNCTION__, message, length);
 	if (msg_length[message[1]] == -1) {
 		// Unsupported
 		ceci_warn("unsupported Opcode: %02X", message[1]);
@@ -195,26 +194,7 @@ int libcec_decode_message(uint8_t* message, size_t length)
 	}
 	ceci_info("  o %1X->%1X: <%s>", src = message[0] >> 4, dst = message[0] & 0x0F, 
 			  msg_description[msg_index[message[1]]]);
-#if 0
-	switch(message[1]) {
-	case 0x82:	// Active Source
-		ceci_info("    <Active Source>");
-		break;
-	case 0x04:	// Image View On
-		ceci_info("    <Image View On>");
-		break;
-	case 0x0D:	// Text View On
-		ceci_info("    <Text View On>");
-		break;
-	case 0x9D:	// Inactive Source
-		ceci_info("    <Inactive Source>");
-		break;
-	case 0x85:	// Request Active Source
-		ceci_info("    <Request Active Source>");
-		break;
-	default:
-		break;
-	}
-#endif
+	display_buffer_hex(__FUNCTION__, message, length);
+
 	return LIBCEC_SUCCESS;
 }
