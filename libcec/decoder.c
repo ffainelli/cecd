@@ -53,7 +53,7 @@ static int8_t msg_length[256] = {
 	-1,01,01,01,01,00,00,12,-1,-1,-1,-1,-1,-1,-1,-1,  //  4
 	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  //  5
 	-1,-1,-1,-1,10,-1,-1,12,-1,-1,-1,-1,-1,-1,-1,-1,  //  6
-	03,00,01,-1,-1,-1,-1,-1,-1,-1,01,-1,-1,00,01,-1,  //  7
+	02,00,01,-1,-1,-1,-1,-1,-1,-1,01,-1,-1,00,01,-1,  //  7
 	04,02,02,00,03,00,02,03,-1,12,12,00,00,01,01,00,  //  8
 	01,00,04,07,-1,-1,-1,14,-1,14,01,-1,-1,02,01,00,  //  9
 	13, 9, 9,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  //  A
@@ -64,8 +64,9 @@ static int8_t msg_length[256] = {
 	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,00,  //  F
 };
 
+// TODO: add an option to not include these messages
 static char* msg_description[63] = {
-	"UNSUPPORTED",					// N/A		0
+	"*Unsupported Opcode*",			// N/A		0
 	"Feature Abort",				// 0x00		1
 	"Image View On",				// 0x04		2
 	"Tuner Step Increment",			// 0x05		3
@@ -150,8 +151,6 @@ static uint8_t msg_index[256] = {
 	00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,62,  //  F
 };
 
-
-
 static void display_buffer_hex(const char *function, uint8_t *buffer, size_t length)
 {
 	size_t i;
@@ -183,7 +182,6 @@ int libcec_decode_message(uint8_t* message, size_t length)
 	}
 
 	if (msg_length[message[1]] == -1) {
-		// Unsupported
 		ceci_warn("unsupported Opcode: %02X", message[1]);
 		return LIBCEC_ERROR_NOT_SUPPORTED;
 	}
@@ -192,7 +190,7 @@ int libcec_decode_message(uint8_t* message, size_t length)
 		  ceci_warn("invalid payload length for opcode: %02X", message[1]);
 		  return LIBCEC_ERROR_INVALID_PARAM;
 	}
-	ceci_info("  o %1X->%1X: <%s>", src = message[0] >> 4, dst = message[0] & 0x0F, 
+	ceci_info("  o %1X->%1X: <%s>", src = message[0] >> 4, dst = message[0] & 0x0F,
 			  msg_description[msg_index[message[1]]]);
 	display_buffer_hex(__FUNCTION__, message, length);
 
