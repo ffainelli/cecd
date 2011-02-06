@@ -95,6 +95,7 @@ int libcec_exit(void);
 int libcec_open(char* device_name, libcec_device_handle** handle);
 int libcec_close(libcec_device_handle* handle);
 int libcec_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t length);
+int libcec_get_physical_address(libcec_device_handle* handle, uint16_t* phys_addr);
 int libcec_set_logical_address(libcec_device_handle* handle, uint8_t logical_address);
 int libcec_send_message(libcec_device_handle* handle, uint8_t* buffer, size_t length);
 int libcec_receive_message(libcec_device_handle* handle, uint8_t* buffer, size_t length);
