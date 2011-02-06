@@ -26,11 +26,28 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/types.h>
+#include <linux/types.h>
 #include <sys/ioctl.h>
 
 #include "libceci.h"
 #include "linux_realtek_soc.h"
+
+
+/* I2C definitions */
+#define REALTEK_EDID_I2C_DEV	"/dev/i2c/0"
+#define REALTEK_EDID_I2C_ADDR	0x50
+#define I2C_RDWR				0x0707
+#define I2C_M_RD				0x01
+struct i2c_msg {
+	__u16 addr;
+	__u16 flags;
+	__u16 len;
+	__u8 *buf;
+};
+struct i2c_rdwr_ioctl_data {
+	struct i2c_msg *msgs;
+	int nmsgs;
+};
 
 int realtek_cec_init(void)
 {
@@ -73,7 +90,30 @@ int realtek_cec_close(libcec_device_handle* handle)
 
 int realtek_i2c_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t length)
 {
-	return LIBCEC_ERROR_NOT_SUPPORTED;
+	int fd;
+	struct i2c_msg i2c_message;
+	struct i2c_rdwr_ioctl_data i2c_msgset = { &i2c_message, 1};
+
+	/* Only one HDMI port for RTD, and the DDC for EDID is at I2C address 0x50 */
+	i2c_message.addr = REALTEK_EDID_I2C_ADDR;
+	i2c_message.flags = I2C_M_RD;
+	i2c_message.len = length;
+	i2c_message.buf = buffer;
+
+	fd = open(REALTEK_EDID_I2C_DEV, O_RDWR);
+	if (fd < 0) {
+		ceci_error("unable to open I2C device '%s'", REALTEK_EDID_I2C_DEV);
+		return LIBCEC_ERROR_ACCESS;
+	}
+
+	if (ioctl(fd, I2C_RDWR, &i2c_msgset) < 0) {
+		ceci_error("unable to read E-EDID - ioctl error: %d", errno);
+		close(fd);
+		return LIBCEC_ERROR_IO;
+	}
+	close(fd);
+
+	return LIBCEC_SUCCESS;
 }
 
 int realtek_cec_set_logical_address(libcec_device_handle* handle, uint8_t logical_address)
