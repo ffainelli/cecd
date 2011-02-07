@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cecd", "cecd\_cecd.vcproj", "{11C9CE14-A852-4890-B31E-0C5067015A07}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libcec", "libcec\_libcec.vcproj", "{B1BEA55E-455F-4FA0-A559-903FB32B089A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{11C9CE14-A852-4890-B31E-0C5067015A07}.Debug|Win32.ActiveCfg = Debug|Win32
+		{11C9CE14-A852-4890-B31E-0C5067015A07}.Debug|Win32.Build.0 = Debug|Win32
+		{11C9CE14-A852-4890-B31E-0C5067015A07}.Release|Win32.ActiveCfg = Release|Win32
+		{11C9CE14-A852-4890-B31E-0C5067015A07}.Release|Win32.Build.0 = Release|Win32
+		{B1BEA55E-455F-4FA0-A559-903FB32B089A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B1BEA55E-455F-4FA0-A559-903FB32B089A}.Debug|Win32.Build.0 = Debug|Win32
+		{B1BEA55E-455F-4FA0-A559-903FB32B089A}.Release|Win32.ActiveCfg = Release|Win32
+		{B1BEA55E-455F-4FA0-A559-903FB32B089A}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
