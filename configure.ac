@@ -57,11 +57,11 @@ LIBS="${LIBS} ${PC_LIBS_PRIVATE}"
 AM_CONDITIONAL([OS_LINUX], [test "x$os" = "xlinux"])
 
 # Build daemon?
-AC_ARG_ENABLE([build_deamon], [AS_HELP_STRING([--enable-daemon],
+AC_ARG_ENABLE([daemon], [AS_HELP_STRING([--enable-daemon],
 	[Build cec daemon (cecd, default y)])],
 	[enable_daemon=$enableval],
 	[enable_daemon='yes'])
-AM_CONDITIONAL([BUILD_CECD], [test "x$enable_daemon" = "xyes"])
+AM_CONDITIONAL([BUILD_CECD], [test "x$enable_daemon" != "xno"])
 
 # Implementation backend
 AC_ARG_ENABLE([realtek], [AS_HELP_STRING([--enable-realtek],
