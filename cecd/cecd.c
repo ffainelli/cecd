@@ -30,11 +30,15 @@
 #include <sys/ioctl.h>
 
 #include "libcec.h"
+#include "decoder.h"
 
 #define RUNNING_DIR	"/tmp"
 #define LOCK_FILE	"/var/lock/cecd.lock"
 #define LOG_FILE	"/var/log/cecd.log"
 #define CEC_DEVICE	"/dev/cec/0"
+
+#define OUR_DEVTYPE CEC_DEVTYPE_PLAYBACK
+#define BROADCAST (OUR_DEVTYPE<<4 | 0x0F)
 
 static FILE* logfile = NULL;
 static int lock_fd;
@@ -122,6 +126,7 @@ void daemonize(void)
 int main(int argc, char** argv)
 {
 	int len, ret_val = 0;
+	unsigned short physical_address = 0xFFFF;
 	unsigned char buffer[128];
 	libcec_device_handle* handle;
 
@@ -138,12 +143,19 @@ int main(int argc, char** argv)
 	libcec_init();
 	if (libcec_open(CEC_DEVICE, &handle) <0) {
 		fprintf(logfile, "cannot open CEC device\n");
+		fflush(logfile);
 		goto out;
+	}
+
+	if (libcec_get_physical_address(handle, &physical_address) != LIBCEC_SUCCESS) {
+		fprintf(logfile, "could not read physical address\n");
+		fflush(logfile);
 	}
 
 	// Per the CEC spec, logical addresses 4, 8, and 11 are reserved for playback devices
 	if (libcec_set_logical_address(handle, 4) < 0) {
 		fprintf(stderr, "failed to set CEC logical address\n");
+		fflush(logfile);
 		goto out1;
 	}
 
@@ -151,15 +163,17 @@ int main(int argc, char** argv)
 		len = libcec_receive_message(handle, buffer, 128);
 		if (len <= 0) {
 			fprintf(logfile, "Could not read message (error %d)\n", len);
+			fflush(logfile);
 			goto out1;
 		}
 		libcec_decode_message(buffer, len);
 #define XTREAMER_TEST
 #ifdef XTREAMER_TEST
-		buffer[0] = 0x40;	// 4->0
+		buffer[0] >>= 4;	// Set whoever was talking to us as dest
+		buffer[0] |= OUR_DEVTYPE<<4;
 		switch(buffer[1]) {
-		case 0x46:	// Give OSD Name
-			buffer[1] = 0x47;	// Set OSD Name
+		case CEC_OP_GIVE_OSD_NAME:
+			buffer[1] = CEC_OP_SET_OSD_NAME;
 			buffer[2] = 'X';
 			buffer[3] = 't';
 			buffer[4] = 'r';
@@ -174,33 +188,51 @@ int main(int argc, char** argv)
 			buffer[13] = 'o';
 			len = 14;
 			break;
-		case 0x8C:	// Give Device Vendor ID
-			buffer[1] = 0x87;	// Report Vendor ID
+		case CEC_OP_GIVE_DEVICE_VENDOR_ID:
+			buffer[0] = BROADCAST;
+			buffer[1] = CEC_OP_DEVICE_VENDOR_ID;
 			buffer[2] = 0x00;
 			buffer[3] = 0x1C;
 			buffer[4] = 0x85;	// Eunicorn Korea
 			len = 5;
 			break;
-		case 0x8F:	// Give Device Power Status
-			buffer[1] = 0x90;	// Power Status
+		case CEC_OP_MENU_REQUEST:
+			buffer[1] = CEC_OP_MENU_STATUS;
+			buffer[2] = 0x00;	// menu deactivated
+			len = 3;
+			break;
+		case CEC_OP_GIVE_DEVICE_POWER_STATUS:
+			buffer[1] = CEC_OP_REPORT_POWER_STATUS;
 			buffer[2] = 0x00;	// ON
 			len = 3;
 			break;
-		case 0x9F:	// Get CEC Version
-			buffer[1] = 0x9E;	// CEC Version
+		case CEC_OP_GET_CEC_VERSION:
+			buffer[1] = CEC_OP_CEC_VERSION;
 			buffer[2] = 0x04;	// version 1.3a
 			len = 3;
 			break;
-		case 0x87:	// Device Vendor ID is a good time to send a request
-			buffer[1] = 64;	// Set OSD String
-			buffer[2] = 0;
-			buffer[3] = 'H';
-			buffer[4] = 'e';
-			buffer[5] = 'l';
-			buffer[6] = 'l';
-			buffer[7] = 'o';
-			buffer[8] = '!';
-			len = 9;
+		case CEC_OP_GIVE_PHYSICAL_ADDRESS:
+			buffer[0] = BROADCAST;
+			buffer[1] = CEC_OP_REPORT_PHYSICAL_ADDRESS;
+			buffer[2] = physical_address >> 8;
+			buffer[3] = physical_address & 0xFF;
+			buffer[4] = OUR_DEVTYPE;
+			len = 5;
+			break;
+		case CEC_OP_SET_STREAM_PATH:
+			/* Ignore if request is for a different phys_addr */
+			if ((buffer[2] != (physical_address >> 8)) || (buffer[3] != (physical_address & 0xFF)))
+				break;
+			buffer[0] = BROADCAST;
+			buffer[1] = CEC_OP_ACTIVE_SOURCE;
+			buffer[2] = physical_address >> 8;
+			buffer[3] = physical_address & 0xFF;
+			len = 4;
+			break;
+		case CEC_OP_GIVE_DECK_STATUS:
+			buffer[1] = CEC_OP_DECK_STATUS;
+			buffer[2] = 0x11;	// "Play"
+			len = 3;
 			break;
 		default:
 			len = 0;
@@ -209,6 +241,7 @@ int main(int argc, char** argv)
 		if (len) {
 			if (libcec_send_message(handle, buffer, len)) {
 				fprintf(logfile, "Could not send message\n");
+				fflush(logfile);
 				goto out1;
 			}
 			libcec_decode_message(buffer, len);
