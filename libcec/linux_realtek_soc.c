@@ -91,8 +91,10 @@ int realtek_cec_close(libcec_device_handle* handle)
 int realtek_i2c_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t length)
 {
 	int fd;
+	size_t offset;
 	struct i2c_msg i2c_message;
 	struct i2c_rdwr_ioctl_data i2c_msgset = { &i2c_message, 1};
+	const uint8_t edid_marker[] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
 
 	/* Only one HDMI port for RTD, and the DDC for EDID is at I2C address 0x50 */
 	i2c_message.addr = REALTEK_EDID_I2C_ADDR;
@@ -107,10 +109,37 @@ int realtek_i2c_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t 
 	}
 
 	if (ioctl(fd, I2C_RDWR, &i2c_msgset) < 0) {
-		ceci_error("unable to read E-EDID - ioctl error: %d", errno);
+		ceci_error("unable to read EDID - ioctl error: %d", errno);
 		close(fd);
 		return LIBCEC_ERROR_IO;
 	}
+
+	/* If you switch your HDMI connection around, parasitic bytes
+	   may get inserted in the EDID => attempt to remedy that */
+	if (memcmp(buffer, edid_marker, sizeof(edid_marker)) != 0) {
+		/* EDID marker was not found at the zero position */
+		for (offset=1; offset<length-sizeof(edid_marker); offset++) {
+			if (memcmp(buffer+offset, edid_marker, sizeof(edid_marker)) == 0) {
+				ceci_warn("found EDID marker at offset 0x%x - attempting to fix it", offset);
+				memmove(buffer, buffer+offset, length-offset);
+				break;
+			}
+		}
+		if (offset >= length-sizeof(edid_marker)) {
+			ceci_warn("could not find EDID marker in data - EDID seems invalid");
+			close(fd);
+			return LIBCEC_ERROR_IO;
+		}
+		/* Fill the missing bytes */
+		i2c_message.len = offset;
+		i2c_message.buf = buffer+length-offset-1;
+		if (ioctl(fd, I2C_RDWR, &i2c_msgset) < 0) {
+			ceci_error("failed to complete EDID readout - ioctl error: %d", errno);
+			close(fd);
+			return LIBCEC_ERROR_IO;
+		}
+	}
+
 	close(fd);
 
 	return LIBCEC_SUCCESS;
