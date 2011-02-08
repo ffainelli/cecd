@@ -218,6 +218,8 @@ void ceci_log_v(enum libcec_log_level level, const char *function,
 				const char *format, va_list args)
 {
 	const char *prefix;
+	struct timeval tv;
+	struct tm *loc;
 
 #ifndef ENABLE_DEBUG_LOGGING
 	if (level < ceci_global_log_level)
@@ -242,7 +244,11 @@ void ceci_log_v(enum libcec_log_level level, const char *function,
 		break;
 	}
 
-	fprintf(ceci_logger, "libcec:%s [%s] ", prefix, function);
+	gettimeofday(&tv, (struct timezone *)0);
+	loc = localtime(&tv.tv_sec);
+	fprintf(ceci_logger, "%04d.%02d.%02d %02d:%02d:%02d.%03ld libcec:%s [%s] ",
+		loc->tm_year+1900, loc->tm_mon+1, loc->tm_mday, loc->tm_hour,
+		loc->tm_min, loc->tm_sec, tv.tv_usec/1000, prefix, function);
 	vfprintf(ceci_logger, format, args);
 	fprintf(ceci_logger, "\n");
 	fflush(ceci_logger);
