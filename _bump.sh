@@ -29,5 +29,5 @@ TAGVER_OFF=`expr $TAGVER + $OFFSET`
 echo "Bumping version to cec$TAGVER (nano: $TAGVER_OFF)"
 sed -e "s/\(^m4_define(LIBCEC_NANO.*\)/m4_define(LIBCEC_NANO, [$TAGVER_OFF])/" configure.ac >> configure.ac~
 mv configure.ac~ configure.ac
-git commit -a -m "bumped internal version" -e
+git commit -a -m "[internal] version bump" -e
 git tag "cec$TAGVER"
