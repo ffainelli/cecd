@@ -57,7 +57,7 @@ void cecd_log(const char *format, ...)
 		loc->tm_year+1900, loc->tm_mon+1, loc->tm_mday, loc->tm_hour,
 		loc->tm_min, loc->tm_sec, tv.tv_usec/1000);
 	va_start(args, format);
-	fprintf(logfile, format, args);
+	vfprintf(logfile, format, args);
 	va_end(args);
 	fflush(logfile);
 }
@@ -154,7 +154,7 @@ int main(int argc, char** argv)
 	if (!logfile) {
 		exit(EXIT_FAILURE);
 	}
-	cecd_log("cecd v%d.%d.%d.% started.\n",
+	cecd_log("cecd v%d.%d.%d (r%d) started.\n",
 		LIBCEC_VERSION_MAJOR, LIBCEC_VERSION_MINOR, LIBCEC_VERSION_MICRO, LIBCEC_VERSION_NANO);
 
 	libcec_set_logging(LIBCEC_LOG_LEVEL_DEBUG, logfile);
