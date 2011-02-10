@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
@@ -31,6 +32,7 @@
 
 #include "libcec.h"
 #include "decoder.h"
+#include "libcec_version.h"
 
 #define RUNNING_DIR	"/tmp"
 #define LOCK_FILE	"/var/lock/cecd.lock"
@@ -43,15 +45,31 @@
 static FILE* logfile = NULL;
 static int lock_fd;
 
+void cecd_log(const char *format, ...)
+{
+	va_list args;
+	struct timeval tv;
+	struct tm *loc;
+
+	gettimeofday(&tv, (struct timezone *)0);
+	loc = localtime(&tv.tv_sec);
+	fprintf(logfile, "%04d.%02d.%02d %02d:%02d:%02d.%03ld ",
+		loc->tm_year+1900, loc->tm_mon+1, loc->tm_mday, loc->tm_hour,
+		loc->tm_min, loc->tm_sec, tv.tv_usec/1000);
+	va_start(args, format);
+	fprintf(logfile, format, args);
+	va_end(args);
+	fflush(logfile);
+}
+
 void signal_handler(int sig)
 {
 	switch(sig) {
 	case SIGHUP:
-		fprintf(logfile, "hangup signal detected.\n");
-		fflush(logfile);
+		cecd_log("hangup signal detected.\n");
 		break;
 	case SIGTERM:
-		fprintf(logfile, "terminate signal detected.\n");
+		cecd_log("terminate signal detected.\n");
 		fclose(logfile);
 		close(lock_fd);
 		unlink(LOCK_FILE);
@@ -136,34 +154,30 @@ int main(int argc, char** argv)
 	if (!logfile) {
 		exit(EXIT_FAILURE);
 	}
-	fprintf(logfile, "cecd started.\n");
-	fflush(logfile);
+	cecd_log("cecd v%d.%d.%d.% started.\n",
+		LIBCEC_VERSION_MAJOR, LIBCEC_VERSION_MINOR, LIBCEC_VERSION_MICRO, LIBCEC_VERSION_NANO);
 
 	libcec_set_logging(LIBCEC_LOG_LEVEL_DEBUG, logfile);
 	libcec_init();
 	if (libcec_open(CEC_DEVICE, &handle) <0) {
-		fprintf(logfile, "cannot open CEC device\n");
-		fflush(logfile);
+		cecd_log("cannot open CEC device\n");
 		goto out;
 	}
 
 	if (libcec_get_physical_address(handle, &physical_address) != LIBCEC_SUCCESS) {
-		fprintf(logfile, "could not read physical address\n");
-		fflush(logfile);
+		cecd_log("could not read physical address\n");
 	}
 
 	// Per the CEC spec, logical addresses 4, 8, and 11 are reserved for playback devices
 	if (libcec_set_logical_address(handle, 4) < 0) {
-		fprintf(stderr, "failed to set CEC logical address\n");
-		fflush(logfile);
+		cecd_log("failed to set CEC logical address\n");
 		goto out1;
 	}
 
 	while(1) {
 		len = libcec_receive_message(handle, buffer, 128);
 		if (len <= 0) {
-			fprintf(logfile, "Could not read message (error %d)\n", len);
-			fflush(logfile);
+			cecd_log("Could not read message (error %d)\n", len);
 			goto out1;
 		}
 		libcec_decode_message(buffer, len);
@@ -240,8 +254,7 @@ int main(int argc, char** argv)
 		}
 		if (len) {
 			if (libcec_send_message(handle, buffer, len)) {
-				fprintf(logfile, "Could not send message\n");
-				fflush(logfile);
+				cecd_log("Could not send message\n");
 				goto out1;
 			}
 			libcec_decode_message(buffer, len);
@@ -255,7 +268,7 @@ out:
 	libcec_exit();
 	close(lock_fd);
 	unlink(LOCK_FILE);
-	fprintf(logfile, "cecd stopped.\n");
+	cecd_log("cecd stopped.\n");
 	fclose(logfile);
 	exit(ret_val);
 }
