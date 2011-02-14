@@ -167,6 +167,26 @@
 				RelativePath=".\cecd.c"
 				>
 			</File>
+			<File
+				RelativePath=".\profile.c"
+				>
+			</File>
+			<File
+				RelativePath=".\profile_helpers.c"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Header Files"
+			>
+			<File
+				RelativePath=".\profile.h"
+				>
+			</File>
+			<File
+				RelativePath=".\profile_helpers.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

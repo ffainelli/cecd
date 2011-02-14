@@ -33,6 +33,8 @@
 #include "libcec.h"
 #include "decoder.h"
 #include "libcec_version.h"
+#include "profile.h"
+#include "profile_helpers.h"
 
 #define RUNNING_DIR	"/tmp"
 #define LOCK_FILE	"/var/lock/cecd.lock"
@@ -148,6 +150,23 @@ int main(int argc, char** argv)
 	unsigned char buffer[128];
 	libcec_device_handle* handle;
 
+#ifdef PROFILE_DEBUG
+	long r;
+	profile_t profile;
+
+	if (argc < 2) {
+		fprintf(stderr, "Usage: %s filename <conf_file> <conf_debug>\n", argv[0]);
+		exit(1);
+	}
+
+	r = profile_init_path(argv[1], &profile);
+	if (r) {
+		fprintf(stderr, "error while initializing profile: %s", profile_errtostr(r));
+	}
+	do_cmd(profile, argv+2);
+	profile_release(profile);
+#endif
+
 	daemonize();
 
 	logfile = fopen(LOG_FILE, "a");
@@ -175,7 +194,7 @@ int main(int argc, char** argv)
 	}
 
 	while(1) {
-		len = libcec_receive_message(handle, buffer, 128);
+		len = libcec_read_message(handle, buffer, 128, -1);
 		if (len <= 0) {
 			cecd_log("Could not read message (error %d)\n", len);
 			goto out1;
@@ -253,7 +272,7 @@ int main(int argc, char** argv)
 			break;
 		}
 		if (len) {
-			if (libcec_send_message(handle, buffer, len)) {
+			if (libcec_write_message(handle, buffer, len)) {
 				cecd_log("Could not send message\n");
 				goto out1;
 			}
