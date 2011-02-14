@@ -197,21 +197,21 @@ int libcec_set_logical_address(libcec_device_handle* handle, uint8_t logical_add
 }
 
 DEFAULT_VISIBILITY
-int libcec_send_message(libcec_device_handle* handle, uint8_t* buffer, size_t length)
+int libcec_write_message(libcec_device_handle* handle, uint8_t* buffer, size_t length)
 {
 	if ((handle == NULL) || (buffer == NULL) || (length == 0)) {
 		return LIBCEC_ERROR_INVALID_PARAM;
 	}
-	return ceci_backend->send_message(handle, buffer, length);
+	return ceci_backend->write_message(handle, buffer, length);
 }
 
 DEFAULT_VISIBILITY
-int libcec_receive_message(libcec_device_handle* handle, uint8_t* buffer, size_t length)
+int libcec_read_message(libcec_device_handle* handle, uint8_t* buffer, size_t length, int32_t timeout)
 {
 	if ((handle == NULL) || (buffer == NULL) || (length == 0)) {
 		return LIBCEC_ERROR_INVALID_PARAM;
 	}
-	return ceci_backend->receive_message(handle, buffer, length);
+	return ceci_backend->read_message(handle, buffer, length, timeout);
 }
 
 void ceci_log_v(enum libcec_log_level level, const char *function,

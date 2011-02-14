@@ -158,7 +158,7 @@ int realtek_cec_set_logical_address(libcec_device_handle* handle, uint8_t logica
 	return LIBCEC_SUCCESS;
 }
 
-int realtek_cec_send_message(libcec_device_handle* handle, uint8_t* buffer, size_t length)
+int realtek_cec_write_message(libcec_device_handle* handle, uint8_t* buffer, size_t length)
 {
 	realtek_device_handle_priv* handle_priv = __device_handle_priv(handle);
 	int ret_val;
@@ -178,7 +178,7 @@ int realtek_cec_send_message(libcec_device_handle* handle, uint8_t* buffer, size
 	return LIBCEC_SUCCESS;
 }
 
-int realtek_cec_receive_message(libcec_device_handle* handle, uint8_t* buffer, size_t length)
+int realtek_cec_read_message(libcec_device_handle* handle, uint8_t* buffer, size_t length, int32_t timeout)
 {
 	realtek_device_handle_priv* handle_priv = __device_handle_priv(handle);
 	int rcv_len;
@@ -186,6 +186,10 @@ int realtek_cec_receive_message(libcec_device_handle* handle, uint8_t* buffer, s
 
 	if (length > 255) {
 		return LIBCEC_ERROR_INVALID_PARAM;
+	}
+	if (timeout != -1) {
+		/* Only blocking is supported for now */
+		return LIBCEC_ERROR_NOT_SUPPORTED;
 	}
 	msg.buf = buffer;
 	msg.len = (unsigned char)length;
@@ -204,10 +208,10 @@ const _ceci_backend linux_realtek_soc_backend = {
 	realtek_cec_exit,
 	realtek_cec_open,
 	realtek_cec_close,
-	realtek_i2c_read_edid,
 	realtek_cec_set_logical_address,
-	realtek_cec_send_message,
-	realtek_cec_receive_message,
+	realtek_i2c_read_edid,
+	realtek_cec_read_message,
+	realtek_cec_write_message,
 
 	sizeof(realtek_device_handle_priv),
 };

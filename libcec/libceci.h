@@ -61,11 +61,11 @@ typedef struct {
 	int (*exit)(void);
 	int (*open)(char* device_name, libcec_device_handle* handle);
 	int (*close)(libcec_device_handle* handle);
+	int (*set_logical_address)(libcec_device_handle* handle, uint8_t logical_address);
 	/* we need a call to read EDID from closest sink, to obtain our physical address */
 	int (*read_edid)(libcec_device_handle* handle, uint8_t* buffer, size_t length);
-	int (*set_logical_address)(libcec_device_handle* handle, uint8_t logical_address);
-	int (*send_message)(libcec_device_handle* handle, uint8_t* buffer, size_t length);
-	int (*receive_message)(libcec_device_handle* handle, uint8_t* buffer, size_t length);
+	int (*read_message)(libcec_device_handle* handle, uint8_t* buffer, size_t length, int32_t timeout);
+	int (*write_message)(libcec_device_handle* handle, uint8_t* buffer, size_t length);
 
 	/* number of bytes to reserve for the device handle private backend data */
 	size_t device_handle_priv_size;
