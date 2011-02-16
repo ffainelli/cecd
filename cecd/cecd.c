@@ -3,6 +3,8 @@
  *
  * Copyright (c) 2010, Pete Batard <pbatard@gmail.com>
  * Original daemon skeleton (c) 2001, Levent Karakas
+ * CEC code translation inspired by irfake (c) 2010 Sekator500
+ * Hash table functions adapted from glibc, (c) Ulrich Drepper et al.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +39,8 @@
 #include "profile.h"
 #include "profile_helpers.h"
 
+#define BROADCAST (device_type<<4 | 0x0F)
+
 static char RUNNING_DIR[] = "/tmp";
 static char LOCK_FILE[] = "/var/lock/cecd.lock";
 static char LOG_FILE[] = "/var/log/cecd.log";
@@ -48,10 +52,7 @@ char* lock_file = LOCK_FILE;
 char* log_file = LOG_FILE;
 char* cec_device = CEC_DEVICE;
 char* conf_file = CONF_FILE;
-
-// TODO: pick up from conf
-#define OUR_DEVTYPE CEC_DEVTYPE_PLAYBACK
-#define BROADCAST (OUR_DEVTYPE<<4 | 0x0F)
+unsigned int device_type = CEC_DEVTYPE_PLAYBACK;
 
 static FILE* log_fd = NULL;
 static int lock_fd;
@@ -211,6 +212,11 @@ int main(int argc, char** argv)
 	libcec_device_handle* handle;
 	long r;
 	profile_t profile;
+	unsigned int translated;
+	char cec_code_str[] = "cec_##";
+	char* target_device;
+	int target_pkt_size, target_repeat;
+	FILE* target_fd = NULL;
 
 	static struct option long_options[] = {
 		{"daemon", no_argument, 0, 'D'},
@@ -228,9 +234,10 @@ int main(int argc, char** argv)
 		{0, 0, 0, 0}
 	};
 
+#ifndef PROFILE_DEBUG
 	while(1)
 	{
-		c = getopt_long(argc, argv, "?Dishvl:c:d:", long_options, NULL);
+		c = getopt_long(argc, argv, "?Dishvbl:c:d:", long_options, NULL);
 		if (c == -1)
 			break;
 		switch(c) {
@@ -270,15 +277,15 @@ int main(int argc, char** argv)
 		case 'v':
 			version();
 			exit(0);
-		case 'b':
+		case 'b':	// Development debug
 			opt_debug = -1;
 			break;
 		default:
-			printf("am there?");
 			help();
 			exit(0);
 		}
 	}
+#endif
 
 	if (access(conf_file, R_OK) != 0) {
 		printf("unable to open conf file '%s'\n", conf_file);
@@ -286,11 +293,23 @@ int main(int argc, char** argv)
 	}
 	r = profile_init_path(conf_file, &profile);
 	if (r) {
-		fprintf(stderr, "error while initializing profile: %s", profile_errtostr(r));
+		fprintf(stderr, "error while processing '%s': %s\n",
+			conf_file, profile_errtostr(r));
+		exit(EXIT_FAILURE);
 	}
-//	char* test="dump";
-//	do_cmd(profile, &test);
-	profile_release(profile);
+
+#ifdef PROFILE_DEBUG
+	do_cmd(profile, argv+1);
+	exit(0);
+#endif
+
+	// TODO: check the return value on all these calls
+	profile_get_uint(profile, "device", "type", NULL, CEC_DEVTYPE_PLAYBACK, &device_type);
+	// TODO: check device type value
+	profile_get_string(profile, "device", "path", NULL, CEC_DEVICE, &cec_device);
+	profile_get_string(profile, "translate", "target", "path", NULL, &target_device);
+	profile_get_integer(profile, "translate", "target", "pkt_size", 4, &target_pkt_size);
+	profile_get_boolean(profile, "translate", "target", "repeat", 0, &target_repeat);
 
 	if (!opt_interactive) {
 		daemonize();
@@ -315,16 +334,28 @@ int main(int argc, char** argv)
 		goto out;
 	}
 
+	// Open translation target, if provided
+	if (target_device != NULL) {
+		target_fd = fopen(target_device, "w");
+		if (target_fd == NULL) {
+			cecd_log("unable to open UI codes translation target '%s'\n", target_device);
+			cecd_log("translation of HDMI-CEC codes will be disabled\n");
+		} else {
+			cecd_log("will use target '%s' for UI codes translation\n", target_device);
+		}
+	}
+
+	// TODO: if our type is TV, check for conflict and set to 0.0.0.0 (or rather do that in set_logical?)
 	if (libcec_get_physical_address(handle, &physical_address) != LIBCEC_SUCCESS) {
 		cecd_log("could not read physical address\n");
 	}
 
-	// TODO: pick up from conf
-	// Per the CEC spec, logical addresses 4, 8, and 11 are reserved for playback devices
-	if (libcec_set_logical_address(handle, 4) < 0) {
+	// TODO: proper logical address allocation (for now use device_type)
+	if (libcec_set_logical_address(handle, device_type) < 0) {
 		cecd_log("failed to set CEC logical address\n");
 		goto out1;
 	}
+	cecd_log("using logical address %d\n", device_type);
 
 	while(1) {
 		len = libcec_read_message(handle, buffer, 128, -1);
@@ -336,7 +367,7 @@ int main(int argc, char** argv)
 #define XTREAMER_TEST
 #ifdef XTREAMER_TEST
 		buffer[0] >>= 4;	// Set whoever was talking to us as dest
-		buffer[0] |= OUR_DEVTYPE<<4;
+		buffer[0] |= device_type<<4;
 		switch(buffer[1]) {
 		case CEC_OP_GIVE_OSD_NAME:
 			buffer[1] = CEC_OP_SET_OSD_NAME;
@@ -382,7 +413,7 @@ int main(int argc, char** argv)
 			buffer[1] = CEC_OP_REPORT_PHYSICAL_ADDRESS;
 			buffer[2] = physical_address >> 8;
 			buffer[3] = physical_address & 0xFF;
-			buffer[4] = OUR_DEVTYPE;
+			buffer[4] = device_type;
 			len = 5;
 			break;
 		case CEC_OP_SET_STREAM_PATH:
@@ -399,6 +430,20 @@ int main(int argc, char** argv)
 			buffer[1] = CEC_OP_DECK_STATUS;
 			buffer[2] = 0x11;	// "Play"
 			len = 3;
+			break;
+		case CEC_OP_USER_CONTROL_PRESSED:
+			if (target_fd != NULL) {
+				// translating on the fly may be non-optimised, but we're talking about UI => _SLOW_
+				sprintf(cec_code_str, "0x%02x", buffer[2]);
+				profile_get_uint(profile, "translate", "ui_codes", cec_code_str, 0xdeadbeef, &translated);
+				fwrite(&translated, target_pkt_size, 1, target_fd);
+				if (target_repeat) {
+					fwrite(&translated, target_pkt_size, 1, target_fd);
+				}
+				fflush(target_fd);
+				cecd_log("translated UI Code 0x%02x as 0x%08x\n", buffer[2], translated);
+			}
+			len = 0;
 			break;
 		default:
 			len = 0;
@@ -417,6 +462,10 @@ int main(int argc, char** argv)
 out1:
 	libcec_close(handle);
 out:
+	if (target_fd != NULL) {
+		fclose(target_fd);
+	}
+	profile_release(profile);
 	libcec_exit();
 	close(lock_fd);
 	unlink(lock_file);

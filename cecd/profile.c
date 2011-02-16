@@ -1443,7 +1443,12 @@ profile_get_uint(profile_t profile, const char *name, const char *subname,
 	    /* Empty string is no good.  */
 	    return PROF_BAD_INTEGER;
 	errno = 0;
-	ret_long = strtoul (value, &end_value, 10);
+	/* Hex support */
+	if ((value[0] == '0') && (value[1] == 'x')) {
+		ret_long = strtoul (value+2, &end_value, 16);
+	} else {
+		ret_long = strtoul (value, &end_value, 10);
+	}
 
 	/* Overflow or underflow.  */
 	if ((ret_long == ULONG_MAX) && errno != 0)
