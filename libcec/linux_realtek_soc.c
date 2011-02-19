@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <linux/types.h>
 #include <sys/ioctl.h>
+#include <errno.h>
 
 #include "libceci.h"
 #include "linux_realtek_soc.h"
@@ -187,16 +188,16 @@ int realtek_cec_read_message(libcec_device_handle* handle, uint8_t* buffer, size
 	if (length > 255) {
 		return LIBCEC_ERROR_INVALID_PARAM;
 	}
-	if (timeout != -1) {
-		/* Only blocking is supported for now */
-		return LIBCEC_ERROR_NOT_SUPPORTED;
-	}
+	msg.timeout = (long)timeout;
 	msg.buf = buffer;
 	msg.len = (unsigned char)length;
 
 	rcv_len = ioctl(handle_priv->cec_dev, CEC_RCV_MESSAGE, &msg);
 	if (rcv_len <= 0) {
-		ceci_error("failed to receive CEC message");
+		if (errno == ETIME) {
+			return LIBCEC_ERROR_TIMEOUT;
+		}
+		ceci_error("failed to receive CEC message. errno = %d", errno);
 		return LIBCEC_ERROR_IO;
 	}
 	return rcv_len;
