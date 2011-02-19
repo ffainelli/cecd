@@ -1,7 +1,7 @@
 m4_define(LIBCEC_MAJOR, [0])
 m4_define(LIBCEC_MINOR, [4])
 m4_define(LIBCEC_MICRO, [0])
-m4_define(LIBCEC_NANO, [10008])
+m4_define(LIBCEC_NANO, [10009])
 
 AC_INIT([libcec], LIBCEC_MAJOR.LIBCEC_MINOR.LIBCEC_MICRO, [cecd-devel@lists.sourceforge.net], [libcec], [http://sourceforge.net/apps/trac/cecd/wiki])
 
