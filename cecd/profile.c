@@ -1570,19 +1570,19 @@ const char* profile_errtostr(long error_code)
 	case PROF_MAGIC_NODE:
 		return "Bad magic value in profile_node";
 	case PROF_NO_SECTION:
-		return "Profile section not found";
+		return "Config section not found";
 	case PROF_NO_RELATION:
-		return "Profile relation not found";
+		return "Config value not found";
 	case PROF_ADD_NOT_SECTION:
-		return "Attempt to add a relation to node which is not a section";
+		return "Attempt to add a value to a node which is not a section";
 	case PROF_SECTION_WITH_VALUE:
-		return "A profile section header has a non-zero value";
+		return "A config section header has a non-zero value";
 	case PROF_BAD_LINK_LIST:
 		return "Bad linked list in profile structures";
 	case PROF_BAD_GROUP_LVL:
 		return "Bad group level in profile strctures";
 	case PROF_BAD_PARENT_PTR:
-		return "Bad parent pointer in profile strctures";
+		return "Bad parent pointer in profile structures";
 	case PROF_MAGIC_ITERATOR:
 		return "Bad magic value in profile iterator";
 	case PROF_SET_SECTION_VALUE:
@@ -1590,17 +1590,17 @@ const char* profile_errtostr(long error_code)
 	case PROF_EINVAL:
 		return "Invalid argument passed to profile library";
 	case PROF_READ_ONLY:
-		return "Attempt to modify read-only profile";
+		return "Attempt to modify read-only config";
 	case PROF_SECTION_NOTOP:
-		return "Profile section header not at top level";
+		return "Config section header not at top level";
 	case PROF_SECTION_SYNTAX:
-		return "Syntax error in profile section header";
+		return "Syntax error in section header";
 	case PROF_RELATION_SYNTAX:
-		return "Syntax error in profile relation";
+		return "Syntax error in value assignation";
 	case PROF_EXTRA_CBRACE:
-		return "Extra closing brace in profile";
+		return "Extra closing brace in config";
 	case PROF_MISSING_OBRACE:
-		return "Missing open brace in profile";
+		return "Missing open brace in config";
 	case PROF_MAGIC_PROFILE:
 		return "Bad magic value in profile_t";
 	case PROF_MAGIC_SECTION:
@@ -1614,11 +1614,11 @@ const char* profile_errtostr(long error_code)
 	case PROF_BAD_NAMESET:
 		return "Bad nameset passed to query routine";
 	case PROF_NO_PROFILE:
-		return "No profile file open";
+		return "No config file open";
 	case PROF_MAGIC_FILE:
 		return "Bad magic value in profile_file_t";
 	case PROF_FAIL_OPEN:
-		return "Couldn't open profile file";
+		return "Couldn't open config file";
 	case PROF_EXISTS:
 		return "Section already exists";
 	case PROF_BAD_BOOLEAN:
