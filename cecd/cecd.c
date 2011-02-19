@@ -40,6 +40,7 @@
 #include "profile_helpers.h"
 
 #define BROADCAST (device_type<<4 | 0x0F)
+#define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
 
 static char RUNNING_DIR[] = "/tmp";
 static char LOCK_FILE[] = "/var/lock/cecd.lock";
@@ -54,7 +55,7 @@ char* cec_device = CEC_DEVICE;
 char* conf_file = CONF_FILE;
 unsigned int device_type = CEC_DEVTYPE_PLAYBACK;
 
-static FILE* log_fd = NULL;
+static FILE *log_fd = NULL, *target_fd = NULL;
 static int lock_fd;
 
 static int opt_stdout = 0;
@@ -62,7 +63,17 @@ static int opt_interactive = 0;
 static int log_level = LIBCEC_LOG_LEVEL_DEBUG;
 static int opt_debug = 0;
 
-void cecd_log(const char *format, ...)
+/* command translation */
+static int target_packet_size, target_repeat;
+typedef struct seq {
+	uint8_t  len;
+	uint8_t* data;
+	char* trans;
+	struct seq* next;	// chained list
+} seq;
+static seq *seq_ui[256];
+
+static void cecd_log(const char *format, ...)
 {
 	va_list args;
 	struct timeval tv;
@@ -78,8 +89,9 @@ void cecd_log(const char *format, ...)
 	va_end(args);
 	fflush(log_fd);
 }
+#define cecd_dbg(...) do { if (opt_debug) cecd_log(__VA_ARGS__); } while(0)
 
-void signal_handler(int sig)
+static void signal_handler(int sig)
 {
 	switch(sig) {
 	case SIGHUP:
@@ -97,7 +109,7 @@ void signal_handler(int sig)
 	}
 }
 
-void daemonize(void)
+static void daemonize(void)
 {
 	pid_t pid, sid;
 	int fd, ignored;
@@ -166,7 +178,45 @@ void daemonize(void)
 	signal(SIGTERM,signal_handler); /* catch kill signal */
 }
 
-void usage(void)
+/* Insert a new seq element at the start of the chain */
+static int seq_add(seq** list_start, uint8_t* data, uint8_t len, char* trans)
+{
+	seq* new_seq = malloc(sizeof(seq));
+	if (new_seq == NULL) {
+		return -ENOMEM;
+	}
+	new_seq->data = malloc(len);
+	if (new_seq->data == NULL) {
+		free(new_seq);
+		return -ENOMEM;
+	}
+	memcpy(new_seq->data, data, len);
+	new_seq->len = len;
+	new_seq->trans = trans;
+	new_seq->next = *list_start;
+
+	*list_start = new_seq;
+	return 0;
+}
+
+static void seq_table_free(seq** table, uint32_t size)
+{
+	seq *cur, *p;
+	uint32_t i;
+
+	for (i=0; i<size; i++) {
+		cur = table[i];
+		while (cur != NULL) {
+			p = cur;
+			free(p->data);
+			cur = p->next;
+			free(p);
+		}
+	}
+//	free(table);
+}
+
+static void usage(void)
 {
 	printf("Usage: cecd [-h|--help] [--usage] [-D|--daemon] [-i|--interactive]\n");
 	printf("        [-s|--stdout] [-l|--log-level LOGLEVEL]\n");
@@ -175,12 +225,12 @@ void usage(void)
 	printf("        [--lockfile=LOCKFILE] [--rundir=RUNNINGDIR]\n");
 }
 
-void version(void) {
+static void version(void) {
 	printf("Version %d.%d.%d (r%d)\n",
 		LIBCEC_VERSION_MAJOR, LIBCEC_VERSION_MINOR, LIBCEC_VERSION_MICRO, LIBCEC_VERSION_NANO);
 }
 
-void help(void)
+static void help(void)
 {
 	printf("Usage: cecd [OPTION...]\n");
 	printf("  -D, --daemon                            Become a daemon (default)\n");
@@ -204,19 +254,132 @@ void help(void)
 	printf("  --rundir=RUNNINGDIR                     Path to running directory\n");
 }
 
+static uint8_t str_to_byte(char* str)
+{
+	uint32_t val;
+	char *end_str;
+
+	if ((str == NULL) || (str[0] == 0)) {
+		cecd_log("byte value is empty\n");
+		return 0;
+	}
+
+	if ((str[0] == '0') && (str[1] == 'x')) {
+		val = strtoul(str+2, &end_str, 16);
+	} else {
+		val = strtoul(str, &end_str, 10);
+	}
+
+	if (end_str != str + strlen(str)) {
+		cecd_log("byte conversion error for '%s'\n", str);
+		return 0;
+	}
+
+	if (val > 0xFF) {
+		cecd_log("invalid byte value '%s'\n");
+		return 0;
+	}
+
+	return (uint8_t)(val & 0xFF);
+}
+
+static int str_to_uint32(char* str, uint32_t* val)
+{
+	char *end_str;
+
+	if ((str == NULL) || (str[0] == 0)) {
+		return -1;
+	}
+
+	if ((str[0] == '0') && (str[1] == 'x')) {
+		*val = strtoul(str+2, &end_str, 16);
+	} else {
+		*val = strtoul(str, &end_str, 10);
+	}
+
+	if ( ((*val == ULONG_MAX) && errno != 0)
+	  || (end_str != str + strlen(str)) ) {
+		return -1;
+	}
+
+	return 0;
+}
+
+static void cmd_execute(char* command) {
+	// TODO: use packet_size
+	uint32_t packet;
+
+	// TODO: handle target sequences and stuff
+	if (str_to_uint32(command, &packet)) {
+		cecd_log("execute: '%s' [NOT IMPLEMENTED YET]\n", command);
+		return;
+	}
+
+	fwrite(&packet, target_packet_size, 1, target_fd);
+	if (target_repeat) {
+		fwrite(&packet, target_packet_size, 1, target_fd);
+	}
+	fflush(target_fd);
+	cecd_dbg("execute: sent packet 0x%08x\n", packet);
+}
+
+/* process and execute a sequence of UI commands */
+static uint8_t cmd_process(uint8_t* buffer, uint8_t len, uint8_t max_len)
+{
+	seq* cur;
+	seq *last_match = NULL;
+	int match = 0;
+	uint8_t processed_len, right_len;
+
+	cur = seq_ui[buffer[0]];
+	// Lookup all possible matches with a length greater or equal to the current
+	while (cur != NULL) {
+		if ( (cur->len >= len) && (cur->len <= max_len)
+		  && (memcmp(cur->data, buffer, MIN(cur->len, len)) == 0) ) {
+			match++;
+			last_match = cur;
+		}
+		cur = cur->next;
+	}
+
+	if (match == 0) {
+		// if it's a single item, then it's unhandled => eliminate it
+		if (len == 1) {
+			cecd_dbg("process: unhandled single item 0x%02x: ignoring.\n", buffer[0]);
+			return 1;
+		}
+		cecd_dbg("process: no match/broken sequence: recursing\n");
+		// broken sequence => go back and recursively try to match the previous subsequences
+		// while eliminating potential matches longer than len-1 this time around
+		processed_len = cmd_process(buffer, len-1, len-1);
+		// There's no limit on potential matches for the second part of our lookup
+		right_len = cmd_process(buffer+processed_len, len-processed_len, 0xFF);
+		return processed_len + right_len;
+	}
+
+	if (match == 1) {
+		if (last_match->len == len) {
+			// if the lengths are the same, we have a single match
+			cmd_execute(last_match->trans);
+			return len;
+		}
+		// last_match->len > len => need a few more items to declare victory
+		return 0;
+	}
+
+	// match > 1 => multiple possible matches
+	return 0;
+}
+
 int main(int argc, char** argv)
 {
-	int c, len, ret_val = 0;
+	int c, len, ret_val = 0, target_timeout = 2000;
 	unsigned short physical_address = 0xFFFF;
 	unsigned char buffer[128];
 	libcec_device_handle* handle;
 	long r;
 	profile_t profile;
-	unsigned int translated;
-	char cec_code_str[] = "cec_##";
 	char* target_device;
-	int target_pkt_size, target_repeat;
-	FILE* target_fd = NULL;
 
 	static struct option long_options[] = {
 		{"daemon", no_argument, 0, 'D'},
@@ -308,8 +471,9 @@ int main(int argc, char** argv)
 	// TODO: check device type value
 	profile_get_string(profile, "device", "path", NULL, CEC_DEVICE, &cec_device);
 	profile_get_string(profile, "translate", "target", "path", NULL, &target_device);
-	profile_get_integer(profile, "translate", "target", "pkt_size", 4, &target_pkt_size);
+	profile_get_integer(profile, "translate", "target", "packet_size", 4, &target_packet_size);
 	profile_get_boolean(profile, "translate", "target", "repeat", 0, &target_repeat);
+	profile_get_integer(profile, "translate", "target", "timeout", 2000, &target_timeout);
 
 	if (!opt_interactive) {
 		daemonize();
@@ -332,6 +496,37 @@ int main(int argc, char** argv)
 	if (libcec_open(cec_device, &handle) <0) {
 		cecd_log("cannot open CEC device %s\n", cec_device);
 		goto out;
+	}
+
+	/*
+	 * Process the translation sequences
+	 */
+	const char* ui_codes_node[3] = {"translate", "ui_codes", 0};
+	uint8_t seq_data[32], seq_len;
+	char *str, **key_list_ui, **key, *val;
+
+	// Get the list of all ui_codes keys
+	r = profile_get_relation_names(profile, ui_codes_node, &key_list_ui);
+	if (r) {
+		cecd_log("error reading ui_codes: %s\n", profile_errtostr(r));
+	}
+	for (key=key_list_ui; *key != NULL; key++) {
+		// Get the value, before we lose the key
+		if (profile_get_string(profile, "translate", "ui_codes", *key, NULL, &val) != 0) {
+			cecd_log("unable to read value for ui_codes key '%s'\n", *key);
+		}
+		str = strtok(*key, ",");
+		// fill up a byte array with the sequence
+		for (seq_len=0; ((str!=NULL)&&(seq_len<sizeof(seq_data))); seq_len++) {
+			seq_data[seq_len] = str_to_byte(str);
+			str = strtok(NULL, ",");
+		}
+		// store the sequence in a table of chained lists, using data[0] as index
+		if ((seq_len > 0) && (seq_add(&seq_ui[seq_data[0]], seq_data, seq_len, val) != 0)) {
+			cecd_log("unable to add ui_codes value - aborting");
+			profile_free_list(key_list_ui);
+			goto out;
+		}
 	}
 
 	// Open translation target, if provided
@@ -357,8 +552,24 @@ int main(int argc, char** argv)
 	}
 	cecd_log("using logical address %d\n", device_type);
 
+	int unprocessed_len = 0, processed_len;
+	uint8_t unprocessed[32];
+
 	while(1) {
-		len = libcec_read_message(handle, buffer, 128, -1);
+		// TODO: don't use timeout if no target
+		len = libcec_read_message(handle, buffer, 128, target_timeout);
+		if (len == LIBCEC_ERROR_TIMEOUT) {
+			if (unprocessed_len == 0) {
+				continue;
+			}
+			// If we have unfinished sequence business, insert a fake
+			// <User Control Pressed> message with an invalid key
+			cecd_dbg("timeout detected while looking for a sequence - inserting fake message\n");
+			buffer[0] = 0xF0 | device_type;
+			buffer[1] = CEC_OP_USER_CONTROL_PRESSED;
+			buffer[2] = 0xFF;
+			len = 3;
+		}
 		if (len <= 0) {
 			cecd_log("Could not read message (error %d)\n", len);
 			goto out1;
@@ -417,7 +628,7 @@ int main(int argc, char** argv)
 			len = 5;
 			break;
 		case CEC_OP_SET_STREAM_PATH:
-			/* Ignore if request is for a different phys_addr */
+			// Ignore if request is for a different phys_addr
 			if ((buffer[2] != (physical_address >> 8)) || (buffer[3] != (physical_address & 0xFF)))
 				break;
 			buffer[0] = BROADCAST;
@@ -433,15 +644,12 @@ int main(int argc, char** argv)
 			break;
 		case CEC_OP_USER_CONTROL_PRESSED:
 			if (target_fd != NULL) {
-				// translating on the fly may be non-optimised, but we're talking about UI => _SLOW_
-				sprintf(cec_code_str, "0x%02x", buffer[2]);
-				profile_get_uint(profile, "translate", "ui_codes", cec_code_str, 0xdeadbeef, &translated);
-				fwrite(&translated, target_pkt_size, 1, target_fd);
-				if (target_repeat) {
-					fwrite(&translated, target_pkt_size, 1, target_fd);
+				unprocessed[unprocessed_len++] = buffer[2];
+				processed_len = cmd_process(unprocessed, unprocessed_len, 0xFF);
+				unprocessed_len -= processed_len;
+				if (processed_len && unprocessed_len) {
+					memmove(unprocessed, unprocessed+processed_len, unprocessed_len);
 				}
-				fflush(target_fd);
-				cecd_log("translated UI Code 0x%02x as 0x%08x\n", buffer[2], translated);
 			}
 			len = 0;
 			break;
@@ -458,6 +666,11 @@ int main(int argc, char** argv)
 		}
 #endif
 	}
+
+	// TODO: handle interrupt signal
+	// Cleanup
+	profile_free_list(key_list_ui);
+	seq_table_free(seq_ui, 256);
 
 out1:
 	libcec_close(handle);
