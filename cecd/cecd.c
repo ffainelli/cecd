@@ -48,6 +48,7 @@ static char LOCK_FILE[] = "/var/lock/cecd.lock";
 static char LOG_FILE[] = "/var/log/cecd.log";
 static char CEC_DEVICE[] = "/dev/cec/0";
 static char CONF_FILE[] = "/etc/cecd.conf";
+static char DEFAULT_DEVICE_NAME[] = "Unidentified";
 
 char* running_dir = RUNNING_DIR;
 char* lock_file = LOCK_FILE;
@@ -572,12 +573,13 @@ static uint8_t cmd_process(seq** seq_table, uint16_t* buffer, uint8_t len, uint8
 int main(int argc, char** argv)
 {
 	int c, len, ret_val = 0, target_timeout = 2000;
+	uint32_t device_oui;
 	uint16_t physical_address = 0xFFFF;
-	uint8_t buffer[32];
+	uint8_t i, buffer[32];
 	libcec_device_handle* handle;
 	long r;
 	profile_t profile;
-	char* target_device;
+	char *target_device, *device_name;
 
 	static struct option long_options[] = {
 		{"daemon", no_argument, 0, 'D'},
@@ -668,6 +670,12 @@ int main(int argc, char** argv)
 	profile_get_uint(profile, "device", "type", NULL, CEC_DEVTYPE_PLAYBACK, &device_type);
 	// TODO: check device type value
 	profile_get_string(profile, "device", "path", NULL, CEC_DEVICE, &cec_device);
+	profile_get_string(profile, "device", "name", NULL, DEFAULT_DEVICE_NAME, &device_name);
+	if ((device_name == NULL) || (strlen(device_name) < 1) || (strlen(device_name) > 14)) {
+		cecd_log("invalid device name: '%s' - ignored\n", device_name);
+		device_name = DEFAULT_DEVICE_NAME;
+	}
+	profile_get_uint(profile, "device", "oui", NULL, 0xFFFFFF, &device_oui);
 	profile_get_string(profile, "translate", "target", "path", NULL, &target_device);
 	profile_get_integer(profile, "translate", "target", "packet_size", 4, &target_packet_size);
 	profile_get_boolean(profile, "translate", "target", "repeat", 0, &target_repeat);
@@ -836,37 +844,26 @@ int main(int argc, char** argv)
 			len = 3;
 		}
 		if (len <= 0) {
-			cecd_log("Could not read message (error %d)\n", len);
+			cecd_log("could not read message (error %d)\n", len);
 			goto out1;
 		}
 		libcec_decode_message(buffer, len);
-#define XTREAMER_TEST
-#ifdef XTREAMER_TEST
 		buffer[0] >>= 4;	// Set whoever was talking to us as dest
 		buffer[0] |= device_type<<4;
 		switch(buffer[1]) {
 		case CEC_OP_GIVE_OSD_NAME:
 			buffer[1] = CEC_OP_SET_OSD_NAME;
-			buffer[2] = 'X';
-			buffer[3] = 't';
-			buffer[4] = 'r';
-			buffer[5] = 'e';
-			buffer[6] = 'a';
-			buffer[7] = 'm';
-			buffer[8] = 'e';
-			buffer[9] = 'r';
-			buffer[10] = ' ';
-			buffer[11] = 'P';
-			buffer[12] = 'r';
-			buffer[13] = 'o';
-			len = 14;
+			for (i=0; i<strlen(device_name); i++) {
+				buffer[i+2] = device_name[i];
+			}
+			len = i+2;
 			break;
 		case CEC_OP_GIVE_DEVICE_VENDOR_ID:
 			buffer[0] = BROADCAST;
 			buffer[1] = CEC_OP_DEVICE_VENDOR_ID;
-			buffer[2] = 0x00;
-			buffer[3] = 0x1C;
-			buffer[4] = 0x85;	// Eunicorn Korea
+			buffer[2] = (device_oui>>16)&0xFF;
+			buffer[3] = (device_oui>>8)&0xFF;
+			buffer[4] = device_oui & 0xFF;
 			len = 5;
 			break;
 		case CEC_OP_MENU_REQUEST:
@@ -929,12 +926,11 @@ int main(int argc, char** argv)
 		}
 		if (len) {
 			if (libcec_write_message(handle, buffer, len)) {
-				cecd_log("Could not send message\n");
+				cecd_log("could not send message\n");
 				goto out1;
 			}
 			libcec_decode_message(buffer, len);
 		}
-#endif
 	}
 
 seq_out:
