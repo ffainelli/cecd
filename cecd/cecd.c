@@ -65,6 +65,9 @@ static int opt_interactive = 0;
 static int log_level = LIBCEC_LOG_LEVEL_DEBUG;
 static int opt_debug = 0;
 
+static profile_t profile;
+static libcec_device_handle* handle;
+
 /* command translation */
 static int target_packet_size, target_repeat;
 typedef struct seq {
@@ -74,6 +77,7 @@ typedef struct seq {
 	struct seq* next;	// chained list
 } seq;
 static seq **seq_ui, **seq_cec;
+static char **key_list_ui = NULL, **key_list_cec = NULL;
 
 static void cecd_log(const char *format, ...)
 {
@@ -92,25 +96,6 @@ static void cecd_log(const char *format, ...)
 	fflush(log_fd);
 }
 #define cecd_dbg(...) do { if (opt_debug) cecd_log(__VA_ARGS__); } while(0)
-
-static void signal_handler(int sig)
-{
-	switch(sig) {
-	case SIGHUP:
-		cecd_log("hangup signal detected.\n");
-		break;
-	case SIGTERM:
-		// TODO: handle main loop exit from here
-		cecd_log("terminate signal detected.\n");
-		if (!opt_stdout) {
-			fclose(log_fd);
-		}
-		close(lock_fd);
-		unlink(lock_file);
-		exit(EXIT_SUCCESS);
-		break;
-	}
-}
 
 static void daemonize(void)
 {
@@ -176,9 +161,6 @@ static void daemonize(void)
 	signal(SIGTSTP,SIG_IGN);
 	signal(SIGTTOU,SIG_IGN);
 	signal(SIGTTIN,SIG_IGN);
-
-	signal(SIGHUP,signal_handler); /* catch hangup signal */
-	signal(SIGTERM,signal_handler); /* catch kill signal */
 }
 
 /* Insert a new seq element at the start of the chain */
@@ -237,6 +219,8 @@ typedef struct hash_table {
 	uint32_t size;
 	uint32_t filled;
 } hash_table;
+
+static hash_table *htab_cec = NULL;
 
 /* For the used double hash method the table size has to be a prime. To
    correct the user given table size we need a prime test.  This trivial
@@ -570,15 +554,51 @@ static uint8_t cmd_process(seq** seq_table, uint16_t* buffer, uint8_t len, uint8
 	return 0;
 }
 
+static void cecd_exit(int ret_val)
+{
+	// All these calls properly handle a NULL parameter
+	seq_table_free(seq_ui, 256);
+	profile_free_list(key_list_ui);
+	if (htab_cec != NULL) {
+		seq_table_free(seq_cec, htab_cec->size);
+	}
+	profile_free_list(key_list_cec);
+	htab_free(htab_cec);
+	libcec_close(handle);
+	fclose(target_fd);
+	profile_release(profile);
+	libcec_exit();
+	close(lock_fd);
+	unlink(lock_file);
+	cecd_log("cecd stopped.\n");
+	if (!opt_stdout) {
+		fclose(log_fd);
+	}
+	exit(ret_val);
+}
+
+static void signal_handler(int sig)
+{
+	switch(sig) {
+	case SIGHUP:
+		cecd_log("hangup signal detected.\n");
+		if (opt_interactive)
+			cecd_exit(EXIT_SUCCESS);
+		break;
+	case SIGTERM:
+		cecd_log("terminate signal detected.\n");
+		cecd_exit(EXIT_SUCCESS);
+		break;
+	}
+}
+
 int main(int argc, char** argv)
 {
-	int c, len, ret_val = 0, target_timeout = 2000;
+	int c, len, target_timeout = 2000;
 	uint32_t device_oui;
 	uint16_t physical_address = 0xFFFF;
 	uint8_t i, buffer[32];
-	libcec_device_handle* handle;
 	long r;
-	profile_t profile;
 	char *target_device, *device_name;
 
 	static struct option long_options[] = {
@@ -645,27 +665,46 @@ int main(int argc, char** argv)
 			break;
 		default:
 			help();
-			exit(0);
+			exit(EXIT_SUCCESS);
+		}
+	}
+
+	/*
+	 * Start the daemon if requested
+	 */
+	if (!opt_interactive) {
+		daemonize();
+	} else {
+		if (!opt_stdout) {
+			log_fd = fopen(log_file, "a");
+			if (!log_fd) {
+				exit(EXIT_FAILURE);
+			}
+		} else {
+			log_fd = stdout;
 		}
 	}
 #endif
 
 	if (access(conf_file, R_OK) != 0) {
 		printf("unable to open conf file '%s'\n", conf_file);
-		exit(EXIT_FAILURE);
+		cecd_exit(EXIT_FAILURE);
 	}
 	r = profile_init_path(conf_file, &profile);
 	if (r) {
 		fprintf(stderr, "error while processing '%s': %s\n",
 			conf_file, profile_errtostr(r));
-		exit(EXIT_FAILURE);
+		cecd_exit(EXIT_FAILURE);
 	}
 
 #ifdef PROFILE_DEBUG
 	do_cmd(profile, argv+1);
-	exit(0);
+	cecd_exit(EXIT_SUCCESS);
 #endif
 
+	/*
+	 * read the conf file data
+	 */
 	// TODO: check the return value on all these calls
 	profile_get_uint(profile, "device", "type", NULL, CEC_DEVTYPE_PLAYBACK, &device_type);
 	// TODO: check device type value
@@ -681,18 +720,6 @@ int main(int argc, char** argv)
 	profile_get_boolean(profile, "translate", "target", "repeat", 0, &target_repeat);
 	profile_get_integer(profile, "translate", "target", "timeout", 2000, &target_timeout);
 
-	if (!opt_interactive) {
-		daemonize();
-	} else {
-		if (!opt_stdout) {
-			log_fd = fopen(log_file, "a");
-			if (!log_fd) {
-				exit(EXIT_FAILURE);
-			}
-		} else {
-			log_fd = stdout;
-		}
-	}
 
 	cecd_log("cecd v%d.%d.%d (r%d) started.\n",
 		LIBCEC_VERSION_MAJOR, LIBCEC_VERSION_MINOR, LIBCEC_VERSION_MICRO, LIBCEC_VERSION_NANO);
@@ -701,7 +728,7 @@ int main(int argc, char** argv)
 	libcec_init();
 	if (libcec_open(cec_device, &handle) <0) {
 		cecd_log("cannot open CEC device %s\n", cec_device);
-		goto out;
+		cecd_exit(EXIT_FAILURE);
 	}
 
 	/*
@@ -713,8 +740,7 @@ int main(int argc, char** argv)
 	// TODO: check for seq_data overflow
 	uint16_t seq_data[32], seq_len;
 	uint32_t size;
-	char *str, *saveptr, **key_list_ui = NULL, **key_list_cec = NULL, **key, *val;
-	hash_table *htab_cec = NULL;
+	char *str, *saveptr, **key, *val;
 
 	// Get the list of all ui_codes keys
 	r = profile_get_relation_names(profile, ui_codes_node, &key_list_ui);
@@ -725,7 +751,7 @@ int main(int argc, char** argv)
 	seq_ui = calloc(256, sizeof(seq*));
 	if (seq_ui == NULL) {
 		cecd_log("out of memory (seq_ui) - aborting\n");
-		goto seq_out;
+		cecd_exit(EXIT_FAILURE);
 	}
 	for (key=key_list_ui; *key != NULL; key++) {
 		// Get the value, before we lose the key
@@ -747,7 +773,7 @@ int main(int argc, char** argv)
 		// store the sequence in a table of chained lists, using data[0] as index
 		if ((seq_len > 0) && (seq_add(&seq_ui[seq_data[0]], seq_data, seq_len, val) != 0)) {
 			cecd_log("out of memory (seq_ui add) - aborting");
-			goto seq_out;
+			cecd_exit(EXIT_FAILURE);
 		}
 	}
 
@@ -766,15 +792,14 @@ int main(int argc, char** argv)
 	htab_cec = htab_create(size*4, "cec_commands");
 	if (htab_cec == NULL) {
 		cecd_log("out of memory (htab_cec) - aborting\n");
-		goto seq_out;
+		cecd_exit(EXIT_FAILURE);
 	}
 	// Create the sequence array. This is a table of chained list, with each element
 	// of the list representing a potential matching sequence
 	seq_cec = calloc(htab_cec->size, sizeof(seq*));
 	if (seq_cec == NULL) {
 		cecd_log("out of memory (seq_cec) - aborting\n");
-		goto seq_out;
-
+		cecd_exit(EXIT_FAILURE);
 	}
 	for (key=key_list_cec; *key != NULL; key++) {
 		// Get the value, before we lose the key
@@ -796,7 +821,7 @@ int main(int argc, char** argv)
 		// store the sequence in a table of chained lists, using data[0] as index
 		if ((seq_len > 0) && (seq_add(&seq_cec[seq_data[0]], seq_data, seq_len, val) != 0)) {
 			cecd_log("out of memory (seq_cec add) - aborting");
-			goto seq_out;
+			cecd_exit(EXIT_FAILURE);
 		}
 	}
 
@@ -814,18 +839,23 @@ int main(int argc, char** argv)
 	// TODO: if our type is TV, check for conflict and set to 0.0.0.0 (or rather do that in set_logical?)
 	if (libcec_get_physical_address(handle, &physical_address) != LIBCEC_SUCCESS) {
 		cecd_log("could not read physical address\n");
+		cecd_exit(EXIT_FAILURE);
 	}
 
 	// TODO: proper logical address allocation (for now use device_type)
 	if (libcec_set_logical_address(handle, device_type) < 0) {
 		cecd_log("failed to set CEC logical address\n");
-		goto out1;
+		cecd_exit(EXIT_FAILURE);
 	}
 	cecd_log("using logical address %d\n", device_type);
 
 	uint8_t ui_unprocessed_len = 0, ui_processed_len, cec_unprocessed_len = 0, cec_processed_len;
 	// TODO: use a #def for max len
 	uint16_t ui_unprocessed[32], cec_unprocessed[32];
+
+	// handle interrupt signals before we enter main loop
+	signal(SIGHUP, signal_handler);
+	signal(SIGTERM, signal_handler);
 
 	// TODO: handle interrupt signal in main loop
 	while(1) {
@@ -845,7 +875,7 @@ int main(int argc, char** argv)
 		}
 		if (len <= 0) {
 			cecd_log("could not read message (error %d)\n", len);
-			goto out1;
+			continue;
 		}
 		libcec_decode_message(buffer, len);
 		buffer[0] >>= 4;	// Set whoever was talking to us as dest
@@ -868,17 +898,17 @@ int main(int argc, char** argv)
 			break;
 		case CEC_OP_MENU_REQUEST:
 			buffer[1] = CEC_OP_MENU_STATUS;
-			buffer[2] = 0x00;	// menu deactivated
+			buffer[2] = CEC_MENUSTATE_ACTIVATED;
 			len = 3;
 			break;
 		case CEC_OP_GIVE_DEVICE_POWER_STATUS:
 			buffer[1] = CEC_OP_REPORT_POWER_STATUS;
-			buffer[2] = 0x00;	// ON
+			buffer[2] = CEC_POWERSTATUS_ON;
 			len = 3;
 			break;
 		case CEC_OP_GET_CEC_VERSION:
 			buffer[1] = CEC_OP_CEC_VERSION;
-			buffer[2] = 0x04;	// version 1.3a
+			buffer[2] = CEC_VERSION_V1_3A;
 			len = 3;
 			break;
 		case CEC_OP_GIVE_PHYSICAL_ADDRESS:
@@ -901,7 +931,7 @@ int main(int argc, char** argv)
 			break;
 		case CEC_OP_GIVE_DECK_STATUS:
 			buffer[1] = CEC_OP_DECK_STATUS;
-			buffer[2] = 0x11;	// "Play"
+			buffer[2] = CEC_DECKINFO_PLAY;
 			len = 3;
 			break;
 		case CEC_OP_USER_CONTROL_PRESSED:
@@ -927,33 +957,10 @@ int main(int argc, char** argv)
 		if (len) {
 			if (libcec_write_message(handle, buffer, len)) {
 				cecd_log("could not send message\n");
-				goto out1;
+				continue;
 			}
 			libcec_decode_message(buffer, len);
 		}
 	}
-
-seq_out:
-	// All these calls properly detect a NULL parameter
-	seq_table_free(seq_ui, 256);
-	profile_free_list(key_list_ui);
-	if (htab_cec != NULL) {
-		seq_table_free(seq_cec, htab_cec->size);
-	}
-	profile_free_list(key_list_cec);
-	htab_free(htab_cec);
-
-out1:
-	libcec_close(handle);
-out:
-	fclose(target_fd);
-	profile_release(profile);
-	libcec_exit();
-	close(lock_fd);
-	unlink(lock_file);
-	cecd_log("cecd stopped.\n");
-	if (!opt_stdout) {
-		fclose(log_fd);
-	}
-	exit(ret_val);
+	return EXIT_SUCCESS;
 }
