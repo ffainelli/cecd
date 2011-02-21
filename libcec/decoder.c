@@ -158,7 +158,7 @@ static uint8_t msg_index[256] = {
 	00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,62,  //  F
 };
 
-static void display_buffer_hex(const char *function, uint8_t *buffer, size_t length)
+static void display_buffer_hex(uint8_t *buffer, size_t length)
 {
 	size_t i;
 
@@ -168,7 +168,7 @@ static void display_buffer_hex(const char *function, uint8_t *buffer, size_t len
 
 	for (i=0; i<length; i++) {
 		if (!(i%0x10))
-			fprintf(ceci_logger, "                        libcec:info [%s]    ", function);
+			fprintf(ceci_logger, "                                                               ");
 		fprintf(ceci_logger, " %02X", buffer[i]);
 	}
 	fprintf(ceci_logger, "\n");
@@ -199,7 +199,7 @@ int libcec_decode_message(uint8_t* message, size_t length)
 	}
 	ceci_info("  o %1X->%1X: <%s>", src = message[0] >> 4, dst = message[0] & 0x0F,
 			  msg_description[msg_index[message[1]]]);
-	display_buffer_hex(__FUNCTION__, message, length);
+	display_buffer_hex(message+1, length-1);
 
 	return LIBCEC_SUCCESS;
 }
