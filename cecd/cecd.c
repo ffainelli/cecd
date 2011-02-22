@@ -705,21 +705,44 @@ int main(int argc, char** argv)
 	/*
 	 * read the conf file data
 	 */
-	// TODO: check the return value on all these calls
-	profile_get_uint(profile, "device", "type", NULL, CEC_DEVTYPE_PLAYBACK, &device_type);
-	// TODO: check device type value
-	profile_get_string(profile, "device", "path", NULL, CEC_DEVICE, &cec_device);
-	profile_get_string(profile, "device", "name", NULL, DEFAULT_DEVICE_NAME, &device_name);
+	if ( (profile_get_uint(profile, "device", "type", NULL, CEC_DEVTYPE_PLAYBACK, &device_type))
+	  || (device_type > 5) || (device_type == 2) ) {
+		cecd_log("invalid value for device.type\n");
+		cecd_exit(EXIT_FAILURE);
+	}
+	if ((r = profile_get_string(profile, "device", "path", NULL, CEC_DEVICE, &cec_device))) {
+		cecd_log("error reading device.path: %s\n", profile_errtostr(r));
+		cecd_exit(EXIT_FAILURE);
+	}
+	if ((r = profile_get_string(profile, "device", "name", NULL, DEFAULT_DEVICE_NAME, &device_name))) {
+		cecd_log("error reading device.name: %s\n", profile_errtostr(r));
+		cecd_exit(EXIT_FAILURE);
+	}
 	if ((device_name == NULL) || (strlen(device_name) < 1) || (strlen(device_name) > 14)) {
-		cecd_log("invalid device name: '%s' - ignored\n", device_name);
+		cecd_log("invalid device.name: '%s' - ignored\n", device_name);
 		device_name = DEFAULT_DEVICE_NAME;
 	}
-	profile_get_uint(profile, "device", "oui", NULL, 0xFFFFFF, &device_oui);
-	profile_get_string(profile, "translate", "target", "path", NULL, &target_device);
-	profile_get_integer(profile, "translate", "target", "packet_size", 4, &target_packet_size);
-	profile_get_boolean(profile, "translate", "target", "repeat", 0, &target_repeat);
-	profile_get_integer(profile, "translate", "target", "timeout", 2000, &target_timeout);
-
+	if ((r = profile_get_uint(profile, "device", "oui", NULL, 0xFFFFFF, &device_oui))) {
+		cecd_log("error reading device.oui: %s\n", profile_errtostr(r));
+		cecd_exit(EXIT_FAILURE);
+	}
+	if ((r = profile_get_string(profile, "translate", "target", "path", NULL, &target_device))) {
+		cecd_log("error reading translate.target.path: %s\n", profile_errtostr(r));
+		cecd_exit(EXIT_FAILURE);
+	}
+	if ( (profile_get_integer(profile, "translate", "target", "packet_size", 4, &target_packet_size))
+		|| (target_packet_size > 4) ) {
+		cecd_log("invalid value for translate.target.packet_size\n");
+		cecd_exit(EXIT_FAILURE);
+	}
+	if ((r = profile_get_boolean(profile, "translate", "target", "repeat", 0, &target_repeat))) {
+		cecd_log("error reading translate.traget.repeat: %s\n", profile_errtostr(r));
+		cecd_exit(EXIT_FAILURE);
+	};
+	if ((r = profile_get_integer(profile, "translate", "target", "timeout", 2000, &target_timeout))) {
+		cecd_log("error reading translate.target.timeout: %s\n", profile_errtostr(r));
+		cecd_exit(EXIT_FAILURE);
+	};
 
 	cecd_log("cecd v%d.%d.%d (r%d) started.\n",
 		LIBCEC_VERSION_MAJOR, LIBCEC_VERSION_MINOR, LIBCEC_VERSION_MICRO, LIBCEC_VERSION_NANO);
@@ -743,85 +766,85 @@ int main(int argc, char** argv)
 	char *str, *saveptr, **key, *val;
 
 	// Get the list of all ui_codes keys
-	r = profile_get_relation_names(profile, ui_codes_node, &key_list_ui);
-	if (r) {
-		cecd_log("error reading ui_codes: %s\n", profile_errtostr(r));
-	}
-	// allocate the ui_codes sequence lookup table
-	seq_ui = calloc(256, sizeof(seq*));
-	if (seq_ui == NULL) {
-		cecd_log("out of memory (seq_ui) - aborting\n");
-		cecd_exit(EXIT_FAILURE);
-	}
-	for (key=key_list_ui; *key != NULL; key++) {
-		// Get the value, before we lose the key
-		if (profile_get_string(profile, "translate", "ui_codes", *key, NULL, &val) != 0) {
-			cecd_log("unable to read value for ui_codes key '%s' - ignoring sequence\n", *key);
-			continue;
-		}
-		str = strtok_r(*key, ",", &saveptr);
-		// fill up a byte array with the sequence
-		for (seq_len=0; ((str!=NULL)&&(seq_len<ARRAY_SIZE(seq_data))); seq_len++) {
-			if (str_to_byte(str, &byte)) {
-				cecd_log("error converting byte '%s' - ignoring sequence\n", str);
-				seq_len = 0;
-				break;
-			}
-			seq_data[seq_len] = (uint16_t)byte;
-			str = strtok_r(NULL, ",", &saveptr);
-		}
-		// store the sequence in a table of chained lists, using data[0] as index
-		if ((seq_len > 0) && (seq_add(&seq_ui[seq_data[0]], seq_data, seq_len, val) != 0)) {
-			cecd_log("out of memory (seq_ui add) - aborting");
+	if ((r = profile_get_relation_names(profile, ui_codes_node, &key_list_ui))) {
+		cecd_log("error reading ui_codes: %s - ui_codes will be ignored\n", profile_errtostr(r));
+	} else {
+		// allocate the ui_codes sequence lookup table
+		seq_ui = calloc(256, sizeof(seq*));
+		if (seq_ui == NULL) {
+			cecd_log("out of memory (seq_ui) - aborting\n");
 			cecd_exit(EXIT_FAILURE);
+		}
+		for (key=key_list_ui; *key != NULL; key++) {
+			// Get the value, before we lose the key
+			if (profile_get_string(profile, "translate", "ui_codes", *key, NULL, &val) != 0) {
+				cecd_log("unable to read value for ui_codes key '%s' - ignoring sequence\n", *key);
+				continue;
+			}
+			str = strtok_r(*key, ",", &saveptr);
+			// fill up a byte array with the sequence
+			for (seq_len=0; ((str!=NULL)&&(seq_len<ARRAY_SIZE(seq_data))); seq_len++) {
+				if (str_to_byte(str, &byte)) {
+					cecd_log("error converting byte '%s' - ignoring sequence\n", str);
+					seq_len = 0;
+					break;
+				}
+				seq_data[seq_len] = (uint16_t)byte;
+				str = strtok_r(NULL, ",", &saveptr);
+			}
+			// store the sequence in a table of chained lists, using data[0] as index
+			if ((seq_len > 0) && (seq_add(&seq_ui[seq_data[0]], seq_data, seq_len, val) != 0)) {
+				cecd_log("out of memory (seq_ui add) - aborting");
+				cecd_exit(EXIT_FAILURE);
+			}
 		}
 	}
 
 	// Get the list of all cec_codes sequences
-	r = profile_get_relation_names(profile, cec_commands_node, &key_list_cec);
-	if (r) {
-		cecd_log("error reading cec_commands: %s\n", profile_errtostr(r));
-	}
-	// Find the size
-	size=0;
-	for (key=key_list_cec; *key != NULL; key++) {
-		size++;
-	}
-	// Create a hash table that's at least 4 times the size
-	// TODO: allow custimization of multiplier through cecd opt or conf
-	htab_cec = htab_create(size*4, "cec_commands");
-	if (htab_cec == NULL) {
-		cecd_log("out of memory (htab_cec) - aborting\n");
-		cecd_exit(EXIT_FAILURE);
-	}
-	// Create the sequence array. This is a table of chained list, with each element
-	// of the list representing a potential matching sequence
-	seq_cec = calloc(htab_cec->size, sizeof(seq*));
-	if (seq_cec == NULL) {
-		cecd_log("out of memory (seq_cec) - aborting\n");
-		cecd_exit(EXIT_FAILURE);
-	}
-	for (key=key_list_cec; *key != NULL; key++) {
-		// Get the value, before we lose the key
-		if (profile_get_string(profile, "translate", "cec_commands", *key, NULL, &val) != 0) {
-			cecd_log("unable to read value for cec_commands key '%s' - ignoring sequence\n", *key);
-			continue;
+	if ((r = profile_get_relation_names(profile, cec_commands_node, &key_list_cec))) {
+		cecd_log("error reading cec_commands: %s - cec_commands will be ignored\n", profile_errtostr(r));
+	} else {
+		// Find the size
+		size=0;
+		for (key=key_list_cec; *key != NULL; key++) {
+			size++;
 		}
-		str = strtok_r(*key, ":", &saveptr);
-		// fill up a hash array with the sequence
-		for (seq_len=0; ((str!=NULL)&&(seq_len<ARRAY_SIZE(seq_data))); seq_len++) {
-			seq_data[seq_len] = cmdstr_to_hash(str, htab_cec);
-			if (seq_data[seq_len] == 0) {
-				cecd_log("error creating hash for command containing '%s' - ignoring sequence\n", str);
-				seq_len = 0;
-				break;
-			}
-			str = strtok_r(NULL, ":", &saveptr);
-		}
-		// store the sequence in a table of chained lists, using data[0] as index
-		if ((seq_len > 0) && (seq_add(&seq_cec[seq_data[0]], seq_data, seq_len, val) != 0)) {
-			cecd_log("out of memory (seq_cec add) - aborting");
+		// Create a hash table that's at least 4 times the size
+		// TODO: allow custimization of multiplier through cecd opt or conf
+		htab_cec = htab_create(size*4, "cec_commands");
+		if (htab_cec == NULL) {
+			cecd_log("out of memory (htab_cec) - aborting\n");
 			cecd_exit(EXIT_FAILURE);
+		}
+		// Create the sequence array. This is a table of chained list, with each element
+		// of the list representing a potential matching sequence
+		seq_cec = calloc(htab_cec->size, sizeof(seq*));
+		if (seq_cec == NULL) {
+			cecd_log("out of memory (seq_cec) - aborting\n");
+			cecd_exit(EXIT_FAILURE);
+		}
+		for (key=key_list_cec; *key != NULL; key++) {
+			// Get the value, before we lose the key
+			if (profile_get_string(profile, "translate", "cec_commands", *key, NULL, &val) != 0) {
+				cecd_log("unable to read value for cec_commands key '%s' - ignoring sequence\n", *key);
+				continue;
+			}
+			str = strtok_r(*key, ":", &saveptr);
+			// fill up a hash array with the sequence
+			for (seq_len=0; ((str!=NULL)&&(seq_len<ARRAY_SIZE(seq_data))); seq_len++) {
+				seq_data[seq_len] = cmdstr_to_hash(str, htab_cec);
+				if (seq_data[seq_len] == 0) {
+					cecd_log("error creating hash for command containing '%s' - ignoring sequence\n", str);
+					seq_len = 0;
+					break;
+				}
+				str = strtok_r(NULL, ":", &saveptr);
+			}
+			// store the sequence in a table of chained lists, using data[0] as index
+			if ((seq_len > 0) && (seq_add(&seq_cec[seq_data[0]], seq_data, seq_len, val) != 0)) {
+				cecd_log("out of memory (seq_cec add) - aborting");
+				cecd_exit(EXIT_FAILURE);
+			}
 		}
 	}
 
