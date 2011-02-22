@@ -594,17 +594,16 @@ static void signal_handler(int sig)
 
 int main(int argc, char** argv)
 {
-	const char* ui_codes_node[3] = {"translate", "ui_codes", 0};
+	const char* ucp_commands_node[3] = {"translate", "ucp_commands", 0};
 	const char* cec_commands_node[3] = {"translate", "cec_commands", 0};
 	long r;
 	int c, len, target_timeout;
 	uint32_t size, device_oui;
 	uint16_t physical_address = 0xFFFF;
-	// TODO: use a #def for max len
 	// TODO: check for seq_data overflow
-	uint16_t seq_data[CEC_MAX_COMMAND_SIZE], seq_len, ui_unprocessed[CEC_MAX_COMMAND_SIZE], cec_unprocessed[CEC_MAX_COMMAND_SIZE];
+	uint16_t seq_data[CEC_MAX_COMMAND_SIZE], seq_len, ucp_unprocessed[CEC_MAX_COMMAND_SIZE], cec_unprocessed[CEC_MAX_COMMAND_SIZE];
 	uint8_t i, byte, buffer[CEC_MAX_COMMAND_SIZE];
-	uint8_t ui_unprocessed_len = 0, ui_processed_len, cec_unprocessed_len = 0, cec_processed_len;
+	uint8_t ucp_unprocessed_len = 0, ucp_processed_len, cec_unprocessed_len = 0, cec_processed_len;
 	char *target_device, *device_name, *str, *saveptr, **key, *val;
 
 	static struct option long_options[] = {
@@ -764,11 +763,11 @@ int main(int argc, char** argv)
 	 * Process the translation sequences
 	 */
 
-	// Get the list of all ui_codes keys
-	if ((r = profile_get_relation_names(profile, ui_codes_node, &key_list_ui))) {
-		cecd_log("error reading ui_codes: %s - ui_codes will be ignored\n", profile_errtostr(r));
+	// Get the list of all ucp_commands keys
+	if ((r = profile_get_relation_names(profile, ucp_commands_node, &key_list_ui))) {
+		cecd_log("error reading ucp commands: %s - ucp table will be ignored\n", profile_errtostr(r));
 	} else {
-		// allocate the ui_codes sequence lookup table
+		// allocate the ucp_commands sequence lookup table
 		seq_ui = calloc(256, sizeof(seq*));
 		if (seq_ui == NULL) {
 			cecd_log("out of memory (seq_ui) - aborting\n");
@@ -776,8 +775,8 @@ int main(int argc, char** argv)
 		}
 		for (key=key_list_ui; *key != NULL; key++) {
 			// Get the value, before we lose the key
-			if (profile_get_string(profile, "translate", "ui_codes", *key, NULL, &val) != 0) {
-				cecd_log("unable to read value for ui_codes key '%s' - ignoring sequence\n", *key);
+			if (profile_get_string(profile, "translate", "ucp_commands", *key, NULL, &val) != 0) {
+				cecd_log("unable to read value for ucp_commands key '%s' - ignoring sequence\n", *key);
 				continue;
 			}
 			str = strtok_r(*key, ",", &saveptr);
@@ -801,7 +800,7 @@ int main(int argc, char** argv)
 
 	// Get the list of all cec_codes sequences
 	if ((r = profile_get_relation_names(profile, cec_commands_node, &key_list_cec))) {
-		cecd_log("error reading cec_commands: %s - cec_commands will be ignored\n", profile_errtostr(r));
+		cecd_log("error reading cec commands: %s - cec table will be ignored\n", profile_errtostr(r));
 	} else {
 		// Find the size
 		size=0;
@@ -880,7 +879,7 @@ int main(int argc, char** argv)
 		// TODO: don't use timeout if no target
 		len = libcec_read_message(handle, buffer, 128, target_timeout);
 		if (len == LIBCEC_ERROR_TIMEOUT) {
-			if ((ui_unprocessed_len == 0) && (cec_unprocessed_len == 0)) {
+			if ((ucp_unprocessed_len == 0) && (cec_unprocessed_len == 0)) {
 				continue;
 			}
 			// If we have unfinished sequence business, insert a fake
@@ -953,11 +952,11 @@ int main(int argc, char** argv)
 			len = 3;
 			break;
 		case CEC_OP_USER_CONTROL_PRESSED:
-			ui_unprocessed[ui_unprocessed_len++] = buffer[2];
-			ui_processed_len = cmd_process(seq_ui, ui_unprocessed, ui_unprocessed_len, 0xFF);
-			ui_unprocessed_len -= ui_processed_len;
-			if (ui_processed_len && ui_unprocessed_len) {
-				memmove(ui_unprocessed, ui_unprocessed+ui_processed_len, ui_unprocessed_len*sizeof(uint16_t));
+			ucp_unprocessed[ucp_unprocessed_len++] = buffer[2];
+			ucp_processed_len = cmd_process(seq_ui, ucp_unprocessed, ucp_unprocessed_len, 0xFF);
+			ucp_unprocessed_len -= ucp_processed_len;
+			if (ucp_processed_len && ucp_unprocessed_len) {
+				memmove(ucp_unprocessed, ucp_unprocessed+ucp_processed_len, ucp_unprocessed_len*sizeof(uint16_t));
 			}
 			len = 0;
 			break;
