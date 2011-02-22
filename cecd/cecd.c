@@ -471,7 +471,7 @@ static int str_to_uint32(char* str, uint32_t* val)
 static uint16_t cmdstr_to_hash(char* cmdstr, hash_table *htab) {
 
 	char *str, *saveptr;
-	uint8_t byte, cmd_len, cmd_data[32];
+	uint8_t byte, cmd_len, cmd_data[CEC_MAX_COMMAND_SIZE];
 
 	str = strtok_r(cmdstr, ",", &saveptr);
 	for (cmd_len=0; ((str!=NULL)&&(cmd_len<ARRAY_SIZE(cmd_data))); cmd_len++) {
@@ -594,12 +594,18 @@ static void signal_handler(int sig)
 
 int main(int argc, char** argv)
 {
-	int c, len, target_timeout = 2000;
-	uint32_t device_oui;
-	uint16_t physical_address = 0xFFFF;
-	uint8_t i, buffer[32];
+	const char* ui_codes_node[3] = {"translate", "ui_codes", 0};
+	const char* cec_commands_node[3] = {"translate", "cec_commands", 0};
 	long r;
-	char *target_device, *device_name;
+	int c, len, target_timeout;
+	uint32_t size, device_oui;
+	uint16_t physical_address = 0xFFFF;
+	// TODO: use a #def for max len
+	// TODO: check for seq_data overflow
+	uint16_t seq_data[CEC_MAX_COMMAND_SIZE], seq_len, ui_unprocessed[CEC_MAX_COMMAND_SIZE], cec_unprocessed[CEC_MAX_COMMAND_SIZE];
+	uint8_t i, byte, buffer[CEC_MAX_COMMAND_SIZE];
+	uint8_t ui_unprocessed_len = 0, ui_processed_len, cec_unprocessed_len = 0, cec_processed_len;
+	char *target_device, *device_name, *str, *saveptr, **key, *val;
 
 	static struct option long_options[] = {
 		{"daemon", no_argument, 0, 'D'},
@@ -757,13 +763,6 @@ int main(int argc, char** argv)
 	/*
 	 * Process the translation sequences
 	 */
-	const char* ui_codes_node[3] = {"translate", "ui_codes", 0};
-	const char* cec_commands_node[3] = {"translate", "cec_commands", 0};
-	uint8_t byte;
-	// TODO: check for seq_data overflow
-	uint16_t seq_data[32], seq_len;
-	uint32_t size;
-	char *str, *saveptr, **key, *val;
 
 	// Get the list of all ui_codes keys
 	if ((r = profile_get_relation_names(profile, ui_codes_node, &key_list_ui))) {
@@ -871,10 +870,6 @@ int main(int argc, char** argv)
 		cecd_exit(EXIT_FAILURE);
 	}
 	cecd_log("using logical address %d\n", device_type);
-
-	uint8_t ui_unprocessed_len = 0, ui_processed_len, cec_unprocessed_len = 0, cec_processed_len;
-	// TODO: use a #def for max len
-	uint16_t ui_unprocessed[32], cec_unprocessed[32];
 
 	// handle interrupt signals before we enter main loop
 	signal(SIGHUP, signal_handler);
