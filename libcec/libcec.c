@@ -186,7 +186,6 @@ int libcec_get_physical_address(libcec_device_handle* handle, uint16_t* phys_add
 	return LIBCEC_ERROR_NOT_FOUND;
 }
 
-
 DEFAULT_VISIBILITY
 int libcec_set_logical_address(libcec_device_handle* handle, uint8_t logical_address)
 {
@@ -194,6 +193,70 @@ int libcec_set_logical_address(libcec_device_handle* handle, uint8_t logical_add
 		return LIBCEC_ERROR_INVALID_PARAM;
 	}
 	return ceci_backend->set_logical_address(handle, logical_address);
+}
+
+DEFAULT_VISIBILITY
+int libcec_allocate_logical_address(libcec_device_handle* handle, uint8_t device_type, uint16_t* physical_address)
+{
+	const uint8_t logical_address_table[15] = {0, 1, 1, 3, 4, 5, 3, 3, 4, 1, 3, 4, 2, 2, 0};
+	int r;
+	uint8_t logical_address, polling_message;
+
+	if (handle == NULL) {
+		return LIBCEC_ERROR_INVALID_PARAM;
+	}
+
+	switch (device_type) {
+		case 0:
+		case 1:
+		case 3:
+		case 4:
+		case 5:
+			break;
+		default:
+			return LIBCEC_ERROR_INVALID_PARAM;
+	}
+
+	/* Set our logical address to unregistered during allocation */
+	r = libcec_set_logical_address(handle, 15);
+	if (r != LIBCEC_SUCCESS) return r;
+	ceci_dbg("switched to unregistered logical address");
+
+	r = libcec_get_physical_address(handle, physical_address);
+	if (r != LIBCEC_SUCCESS) return r;
+	ceci_info("physical address: %d.%d.%d.%d", (*physical_address>>12)&0xF,
+		(*physical_address>>8)&0xF, (*physical_address>>4)&0xF, (*physical_address>>0)&0xF);
+	if (*physical_address == 0xFFFF) {
+		return LIBCEC_SUCCESS;	/* keep unregistered */
+	}
+
+	/* TV as root */
+	if (*physical_address == 0x0000) {
+		if (device_type != 0) {
+			ceci_error("invalid device type for physical address 0.0.0.0 - must be TV");
+			return LIBCEC_ERROR_INVALID_PARAM;
+		}
+		return libcec_set_logical_address(handle, 0);
+	}
+
+	for (logical_address = 1; logical_address < 15; logical_address++) {
+		if (logical_address_table[logical_address] != device_type) {
+			continue;
+		}
+		polling_message = 0xF0 | logical_address;
+		ceci_dbg("querying logical address %d\n", logical_address);
+		if (libcec_write_message(handle, &polling_message, 1) != LIBCEC_SUCCESS) {
+			/* error on polling (no ACK) => assume address is free */
+			r = libcec_set_logical_address(handle, logical_address);
+			if (r != LIBCEC_SUCCESS) return r;
+			ceci_dbg("using logical address %d\n", logical_address);
+			return logical_address;
+		}
+		ceci_dbg("address already in use - trying next\n");
+	}
+
+	ceci_warn("exhausted all possible logical addresses - keeping unregistered (15)\n");
+	return LIBCEC_SUCCESS;
 }
 
 DEFAULT_VISIBILITY

@@ -64,7 +64,9 @@ typedef struct {
 	int (*set_logical_address)(libcec_device_handle* handle, uint8_t logical_address);
 	/* we need a call to read EDID from closest sink, to obtain our physical address */
 	int (*read_edid)(libcec_device_handle* handle, uint8_t* buffer, size_t length);
+	/* returns the number of bytes read, or a negative value on error */
 	int (*read_message)(libcec_device_handle* handle, uint8_t* buffer, size_t length, int32_t timeout);
+	/* returns 0 on success or a negative error code. Must also return success for ACK of Polling Messages */
 	int (*write_message)(libcec_device_handle* handle, uint8_t* buffer, size_t length);
 
 	/* number of bytes to reserve for the device handle private backend data */

@@ -90,6 +90,7 @@ struct libcec_device_handle;
 typedef struct libcec_device_handle libcec_device_handle;
 
 void libcec_set_logging(int level, FILE* stream);
+const char* libcec_strerror(enum libcec_error error_code);
 int libcec_init(void);
 int libcec_exit(void);
 int libcec_open(char* device_name, libcec_device_handle** handle);
@@ -97,6 +98,7 @@ int libcec_close(libcec_device_handle* handle);
 int libcec_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t length);
 int libcec_get_physical_address(libcec_device_handle* handle, uint16_t* phys_addr);
 int libcec_set_logical_address(libcec_device_handle* handle, uint8_t logical_address);
+int libcec_allocate_logical_address(libcec_device_handle* handle, uint8_t device_type, uint16_t* physical_address);
 int libcec_write_message(libcec_device_handle* handle, uint8_t* buffer, size_t length);
 /* timeout is in ms */
 int libcec_read_message(libcec_device_handle* handle, uint8_t* buffer, size_t length, int32_t timeout);
