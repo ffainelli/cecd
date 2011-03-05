@@ -184,8 +184,14 @@ int libcec_decode_message(uint8_t* message, size_t length)
 {
 	uint8_t src, dst;
 
-	if ((message == NULL) || (length < 2)) {
+	if ((message == NULL) || (length < 1)) {
 		return LIBCEC_ERROR_INVALID_PARAM;
+	}
+
+	// Polling Message
+	if (length == 1) {
+		ceci_info("  o %1X->%1X: <Polling Message>", src = message[0] >> 4, dst = message[0] & 0x0F);
+		return LIBCEC_SUCCESS;
 	}
 
 	if ((msg_props[message[1]] & 0x60) == 0) {

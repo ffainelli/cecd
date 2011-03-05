@@ -329,7 +329,8 @@ typedef struct {
 #define CEC_DEVTYPE_RESERVED		0x02
 #define CEC_DEVTYPE_TUNER			0x03
 #define CEC_DEVTYPE_PLAYBACK		0x04
-#define CCE_DEVTYPE_AUDIO			0x05
+#define CEC_DEVTYPE_AUDIO			0x05
+#define CEC_DEVTYPE_FREEUSE			0x06
 
 /* Digital Service Identification */
 #define CEC_DSRVCID_METHOD_MASK		0x80
