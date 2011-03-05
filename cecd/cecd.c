@@ -76,8 +76,8 @@ typedef struct seq {
 	char* trans;
 	struct seq* next;	// chained list
 } seq;
-static seq **seq_ui, **seq_cec;
-static char **key_list_ui = NULL, **key_list_cec = NULL;
+static seq **seq_ucp, **seq_cec;
+static char **key_list_ucp = NULL, **key_list_cec = NULL;
 
 static void cecd_log(const char *format, ...)
 {
@@ -487,7 +487,6 @@ static uint16_t cmdstr_to_hash(char* cmdstr, hash_table *htab) {
 }
 
 static void cmd_execute(char* command) {
-	// TODO: use packet_size
 	uint32_t packet;
 
 	// TODO: handle target sequences and stuff
@@ -518,7 +517,7 @@ static uint8_t cmd_process(seq** seq_table, uint16_t* buffer, uint8_t len, uint8
 	// Lookup all possible matches with a length greater or equal to the current
 	while (cur != NULL) {
 		if ( (cur->len >= len) && (cur->len <= max_len)
-		  && (memcmp(cur->data, buffer, MIN(cur->len, len)) == 0) ) {
+		  && (memcmp(cur->data, buffer, MIN(cur->len, len)*sizeof(uint16_t)) == 0) ) {
 			match++;
 			last_match = cur;
 		}
@@ -557,8 +556,8 @@ static uint8_t cmd_process(seq** seq_table, uint16_t* buffer, uint8_t len, uint8
 static void cecd_exit(int ret_val)
 {
 	// All these calls properly handle a NULL parameter
-	seq_table_free(seq_ui, 256);
-	profile_free_list(key_list_ui);
+	seq_table_free(seq_ucp, 256);
+	profile_free_list(key_list_ucp);
 	if (htab_cec != NULL) {
 		seq_table_free(seq_cec, htab_cec->size);
 	}
@@ -597,7 +596,7 @@ int main(int argc, char** argv)
 	const char* ucp_commands_node[3] = {"translate", "ucp_commands", 0};
 	const char* cec_commands_node[3] = {"translate", "cec_commands", 0};
 	long r;
-	int c, len, target_timeout;
+	int c, len, target_timeout, logical_address = 15, physical_address_changed = -1;
 	uint32_t size, device_oui;
 	uint16_t physical_address = 0xFFFF;
 	// TODO: check for seq_data overflow
@@ -764,16 +763,16 @@ int main(int argc, char** argv)
 	 */
 
 	// Get the list of all ucp_commands keys
-	if ((r = profile_get_relation_names(profile, ucp_commands_node, &key_list_ui))) {
+	if ((r = profile_get_relation_names(profile, ucp_commands_node, &key_list_ucp))) {
 		cecd_log("error reading ucp commands: %s - ucp table will be ignored\n", profile_errtostr(r));
 	} else {
 		// allocate the ucp_commands sequence lookup table
-		seq_ui = calloc(256, sizeof(seq*));
-		if (seq_ui == NULL) {
-			cecd_log("out of memory (seq_ui) - aborting\n");
+		seq_ucp = calloc(256, sizeof(seq*));
+		if (seq_ucp == NULL) {
+			cecd_log("out of memory (seq_ucp) - aborting\n");
 			cecd_exit(EXIT_FAILURE);
 		}
-		for (key=key_list_ui; *key != NULL; key++) {
+		for (key=key_list_ucp; *key != NULL; key++) {
 			// Get the value, before we lose the key
 			if (profile_get_string(profile, "translate", "ucp_commands", *key, NULL, &val) != 0) {
 				cecd_log("unable to read value for ucp_commands key '%s' - ignoring sequence\n", *key);
@@ -791,8 +790,8 @@ int main(int argc, char** argv)
 				str = strtok_r(NULL, ",", &saveptr);
 			}
 			// store the sequence in a table of chained lists, using data[0] as index
-			if ((seq_len > 0) && (seq_add(&seq_ui[seq_data[0]], seq_data, seq_len, val) != 0)) {
-				cecd_log("out of memory (seq_ui add) - aborting");
+			if ((seq_len > 0) && (seq_add(&seq_ucp[seq_data[0]], seq_data, seq_len, val) != 0)) {
+				cecd_log("out of memory (seq_ucp add) - aborting");
 				cecd_exit(EXIT_FAILURE);
 			}
 		}
@@ -857,27 +856,23 @@ int main(int argc, char** argv)
 		}
 	}
 
-	// TODO: if our type is TV, check for conflict and set to 0.0.0.0 (or rather do that in set_logical?)
-	if (libcec_get_physical_address(handle, &physical_address) != LIBCEC_SUCCESS) {
-		cecd_log("could not read physical address\n");
-		cecd_exit(EXIT_FAILURE);
-	}
-
-	// TODO: proper logical address allocation (for now use device_type)
-	if (libcec_set_logical_address(handle, device_type) < 0) {
-		cecd_log("failed to set CEC logical address\n");
-		cecd_exit(EXIT_FAILURE);
-	}
-	cecd_log("using logical address %d\n", device_type);
-
 	// handle interrupt signals before we enter main loop
 	signal(SIGHUP, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	// TODO: handle interrupt signal in main loop
+	// TODO: handle physical address loss (re-routing)
 	while(1) {
+		if (physical_address_changed) {
+			logical_address = libcec_allocate_logical_address(handle, device_type, &physical_address);
+			if (logical_address < 0) {
+				cecd_log("failed to set logical address: %s\n", libcec_strerror(logical_address));
+				cecd_exit(EXIT_FAILURE);
+			}
+			cecd_log("logical address set to %d\n", logical_address);
+			physical_address_changed = 0;
+		}
 		// TODO: don't use timeout if no target
-		len = libcec_read_message(handle, buffer, 128, target_timeout);
+		len = libcec_read_message(handle, buffer, ARRAY_SIZE(buffer), target_timeout);
 		if (len == LIBCEC_ERROR_TIMEOUT) {
 			if ((ucp_unprocessed_len == 0) && (cec_unprocessed_len == 0)) {
 				continue;
@@ -885,18 +880,23 @@ int main(int argc, char** argv)
 			// If we have unfinished sequence business, insert a fake
 			// <User Control Pressed> message with an invalid key
 			cecd_dbg("timeout detected while looking for a sequence - inserting fake message\n");
-			buffer[0] = 0xF0 | device_type;
+			buffer[0] = 0xF0 | logical_address;
 			buffer[1] = CEC_OP_USER_CONTROL_PRESSED;
 			buffer[2] = 0xFF;
 			len = 3;
 		}
-		if (len <= 0) {
+		if (len < 0) {
 			cecd_log("could not read message (error %d)\n", len);
 			continue;
 		}
 		libcec_decode_message(buffer, len);
+		if (len <= 1) {
+			// Ignore ACK, etc.
+			continue;
+		}
+
 		buffer[0] >>= 4;	// Set whoever was talking to us as dest
-		buffer[0] |= device_type<<4;
+		buffer[0] |= logical_address << 4;
 		switch(buffer[1]) {
 		case CEC_OP_GIVE_OSD_NAME:
 			buffer[1] = CEC_OP_SET_OSD_NAME;
@@ -953,7 +953,7 @@ int main(int argc, char** argv)
 			break;
 		case CEC_OP_USER_CONTROL_PRESSED:
 			ucp_unprocessed[ucp_unprocessed_len++] = buffer[2];
-			ucp_processed_len = cmd_process(seq_ui, ucp_unprocessed, ucp_unprocessed_len, 0xFF);
+			ucp_processed_len = cmd_process(seq_ucp, ucp_unprocessed, ucp_unprocessed_len, 0xFF);
 			ucp_unprocessed_len -= ucp_processed_len;
 			if (ucp_processed_len && ucp_unprocessed_len) {
 				memmove(ucp_unprocessed, ucp_unprocessed+ucp_processed_len, ucp_unprocessed_len*sizeof(uint16_t));
