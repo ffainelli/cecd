@@ -67,13 +67,13 @@ int realtek_cec_open(char* device_name, libcec_device_handle* handle)
 	realtek_device_handle_priv* handle_priv = __device_handle_priv(handle);
 	handle_priv->cec_dev = open(device_name, 0);
 	if (handle_priv->cec_dev < 0) {
-		ceci_error("cannot open CEC device %s", device_name);
+		ceci_error("cannot open CEC device '%s' - errno: %d", device_name, errno);
 		return LIBCEC_ERROR_NO_DEVICE;
 	}
 
 	ret_val = ioctl(handle_priv->cec_dev, CEC_ENABLE, 1);
 	if (ret_val) {
-		ceci_error("cannot enable CEC device %s", device_name);
+		ceci_error("cannot enable CEC device '%s' - errno: %d", device_name, errno);
 		close(handle_priv->cec_dev);
 		return LIBCEC_ERROR_IO;
 	}
@@ -105,12 +105,12 @@ int realtek_i2c_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t 
 
 	fd = open(REALTEK_EDID_I2C_DEV, O_RDWR);
 	if (fd < 0) {
-		ceci_error("unable to open I2C device '%s'", REALTEK_EDID_I2C_DEV);
+		ceci_error("unable to open I2C device '%s' - errno: %d", REALTEK_EDID_I2C_DEV, errno);
 		return LIBCEC_ERROR_ACCESS;
 	}
 
 	if (ioctl(fd, I2C_RDWR, &i2c_msgset) < 0) {
-		ceci_error("unable to read EDID - ioctl error: %d", errno);
+		ceci_error("unable to read EDID - errno: %d", errno);
 		close(fd);
 		return LIBCEC_ERROR_IO;
 	}
@@ -135,7 +135,7 @@ int realtek_i2c_read_edid(libcec_device_handle* handle, uint8_t* buffer, size_t 
 		i2c_message.len = offset;
 		i2c_message.buf = buffer+length-offset-1;
 		if (ioctl(fd, I2C_RDWR, &i2c_msgset) < 0) {
-			ceci_error("failed to complete EDID readout - ioctl error: %d", errno);
+			ceci_error("failed to complete EDID readout - errno: %d", errno);
 			close(fd);
 			return LIBCEC_ERROR_IO;
 		}
@@ -173,7 +173,7 @@ int realtek_cec_write_message(libcec_device_handle* handle, uint8_t* buffer, siz
 
 	ret_val = ioctl(handle_priv->cec_dev, CEC_SEND_MESSAGE, &msg);
 	if (ret_val) {
-		ceci_error("failed to send CEC message");
+		ceci_error("failed to send CEC message - errno: %d");
 		return LIBCEC_ERROR_IO;
 	}
 	return LIBCEC_SUCCESS;
@@ -197,7 +197,7 @@ int realtek_cec_read_message(libcec_device_handle* handle, uint8_t* buffer, size
 		if (errno == ETIME) {
 			return LIBCEC_ERROR_TIMEOUT;
 		}
-		ceci_error("failed to receive CEC message. errno = %d", errno);
+		ceci_error("failed to receive CEC message - errno: %d", errno);
 		return LIBCEC_ERROR_IO;
 	}
 	return rcv_len;
