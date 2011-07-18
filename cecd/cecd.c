@@ -1,7 +1,7 @@
 /*
  * cecd - An HDMI-CEC Daemon
  *
- * Copyright (c) 2010, Pete Batard <pbatard@gmail.com>
+ * Copyright (c) 2010-2011, Pete Batard <pete@akeo.ie>
  * Original daemon skeleton (c) 2001, Levent Karakas
  * CEC code translation inspired by irfake (c) 2010 Sekator500
  * Hash table functions adapted from glibc, (c) Ulrich Drepper et al.
@@ -802,12 +802,12 @@ int main(int argc, char** argv)
 		cecd_log("error reading cec commands: %s - cec table will be ignored\n", profile_errtostr(r));
 	} else {
 		// Find the size
-		size=0;
+		size = 0;
 		for (key=key_list_cec; *key != NULL; key++) {
 			size++;
 		}
 		// Create a hash table that's at least 4 times the size
-		// TODO: allow custimization of multiplier through cecd opt or conf
+		// TODO: allow customization of multiplier through cecd opt or conf
 		htab_cec = htab_create(size*4, "cec_commands");
 		if (htab_cec == NULL) {
 			cecd_log("out of memory (htab_cec) - aborting\n");
@@ -821,7 +821,7 @@ int main(int argc, char** argv)
 			cecd_exit(EXIT_FAILURE);
 		}
 		for (key=key_list_cec; *key != NULL; key++) {
-			// Get the value, before we lose the key
+			// Get the value, before we lose the key through strtok
 			if (profile_get_string(profile, "translate", "cec_commands", *key, NULL, &val) != 0) {
 				cecd_log("unable to read value for cec_commands key '%s' - ignoring sequence\n", *key);
 				continue;
