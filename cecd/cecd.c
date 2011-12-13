@@ -100,7 +100,7 @@ static void cecd_log(const char *format, ...)
 static void daemonize(void)
 {
 	pid_t pid, sid;
-	int fd, ignored;
+	int fd, ignored = 0;
 	char str[10];
 
 	if (getppid() == 1) {
@@ -603,7 +603,7 @@ int main(int argc, char** argv)
 	uint16_t seq_data[CEC_MAX_COMMAND_SIZE], seq_len, ucp_unprocessed[CEC_MAX_COMMAND_SIZE], cec_unprocessed[CEC_MAX_COMMAND_SIZE];
 	uint8_t i, byte, buffer[CEC_MAX_COMMAND_SIZE];
 	uint8_t ucp_unprocessed_len = 0, ucp_processed_len, cec_unprocessed_len = 0, cec_processed_len;
-	char *target_device, *device_name, *str, *saveptr, **key, *val;
+	char *target_device, *device_name, *str = NULL, *saveptr = NULL, **key, *val;
 
 	static struct option long_options[] = {
 		{"daemon", no_argument, 0, 'D'},
