@@ -25,3 +25,5 @@ doxygen.cfg
 *.pc
 ChangeLog
 doc/html
+m4/
+INSTALL
