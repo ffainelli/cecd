@@ -27,8 +27,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <linux/types.h>
-#include <linux/i2c.h>
-#include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 #include <errno.h>
 
@@ -39,6 +37,18 @@
 /* I2C definitions */
 #define REALTEK_EDID_I2C_DEV	"/dev/i2c/0"
 #define REALTEK_EDID_I2C_ADDR	0x50
+#define I2C_RDWR				0x0707
+#define I2C_M_RD				0x01
+struct i2c_msg {
+	__u16 addr;
+	__u16 flags;
+	__u16 len;
+	__u8 *buf;
+};
+struct i2c_rdwr_ioctl_data {
+	struct i2c_msg *msgs;
+	int nmsgs;
+};
 
 int realtek_cec_init(void)
 {
