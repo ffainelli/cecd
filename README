@@ -2,3 +2,13 @@ CECD - HDMI-CEC library, daemon and utilities
 
 Please visit our homepage at:
   http://sourceforge.net/apps/trac/cecd/wiki/
+
+Please note that the library part (libcec) is distributed under the GNU Lesser
+General Public License (LGPL) v2.1 or later, and that the daemon part (cecd) is
+distributed uder the GNU General Public License (GPL) v2.0 or later.
+
+As per section 6 with option a) of the LGPL v2.1 license, you are allowed to
+use libcec with non LPGL licensed code (eg. a proprietary driver backend), as
+long as all the necessary object files for libcec recompilation and usage are
+provided and allowed redistribution, free of charge, with the library source.
+For more information, see COPYING.LGPL in this project's root directory.
