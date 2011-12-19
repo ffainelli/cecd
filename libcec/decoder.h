@@ -293,6 +293,7 @@ typedef struct {
 #define CEC_VERSION_V1_2A			0x02
 #define CEC_VERSION_V1_3			0x03
 #define CEC_VERSION_V1_3A			0x04
+#define CEC_VERSION_V1_4			0x05
 
 /* Channel Identifier */
 #define CEC_CHANID_NUM_FORMAT_MASK	0xFC00
