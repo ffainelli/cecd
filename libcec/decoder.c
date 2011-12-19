@@ -26,7 +26,7 @@
 #include "libceci.h"
 #include "decoder.h"
 
-static uint8_t msg_min_max[15][2] = {
+static uint8_t msg_min_max[16][2] = {
 	{ 0, 0},	// 0
 	{ 1, 1},	// 1
 	{ 2, 2},	// 2
@@ -42,6 +42,7 @@ static uint8_t msg_min_max[15][2] = {
 	{ 1, 14},	// C
 	{ 3, 17},	// D
 	{ 14, 14},	// E
+	{ 3, 14},	// F
 };
 
 /*
@@ -68,11 +69,11 @@ static uint8_t msg_props[256] = {
 	0x20,0x20,0x20,0x20,0x20,0x20,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,  //  C
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,  //  D
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,  //  E
-	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,  //  F
+	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x4f,0x00,0x00,0x00,0x00,0x00,0x00,0x20,  //  F
 };
 
 // TODO: add an option to not include these messages
-static char* msg_description[69] = {
+static char* msg_description[70] = {
 	"*Unsupported Opcode*",			// N/A		0
 	"Feature Abort",				// 0x00		1
 	"Image View On",				// 0x04		2
@@ -141,7 +142,8 @@ static char* msg_description[69] = {
 	"Request ARC Initiation",		// 0xC3		65
 	"Request ARC Termination",		// 0xC4		66
 	"Terminate ARC",				// 0xC5		67
-	"Abort",						// 0xFF		68
+	"CDC Message",					// 0xF8		68
+	"Abort",						// 0xFF		69
 };
 
 static uint8_t msg_index[256] = {
@@ -161,7 +163,7 @@ static uint8_t msg_index[256] = {
 	62,63,64,65,66,67,00,00,00,00,00,00,00,00,00,00,  //  C
 	00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,  //  D
 	00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,  //  E
-	00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,68,  //  F
+	00,00,00,00,00,00,00,00,68,00,00,00,00,00,00,69,  //  F
 };
 
 static void display_buffer_hex(uint8_t *buffer, size_t length)
