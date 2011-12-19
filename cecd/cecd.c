@@ -564,7 +564,9 @@ static void cecd_exit(int ret_val)
 	profile_free_list(key_list_cec);
 	htab_free(htab_cec);
 	libcec_close(handle);
-	fclose(target_fd);
+	if (target_fd) {
+		fclose(target_fd);
+	}
 	profile_release(profile);
 	libcec_exit();
 	close(lock_fd);
