@@ -23,7 +23,7 @@
  * As of v1.3a, this is the maximum number of bytes a
  * CEC command can have (including the address and opcode)
  */
-#define CEC_MAX_COMMAND_SIZE 18
+#define CEC_MAX_COMMAND_SIZE 16
 
 /*
  * Typedefs for operands
