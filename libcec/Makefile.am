@@ -13,5 +13,5 @@ libcec_la_LDFLAGS = $(LTLDFLAGS)
 libcec_la_SOURCES = libceci.h libcec.c decoder.h decoder.c $(CEC_BACKEND_SRC)
 
 hdrdir = $(includedir)/libcec
-hdr_HEADERS = libcec.h
+hdr_HEADERS = libcec.h decoder.h
 
