@@ -17,6 +17,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __LIBCEC_DECODER_H__
+#define __LIBCEC_DECODER_H__
+
 #include <stdint.h>
 
 /*
@@ -568,3 +571,5 @@ typedef struct {
 #define CEC_UI_F4_OR_YELLOW			0x74
 #define CEC_UI_F5					0x75
 #define CEC_UI_DATA					0x76
+
+#endif
