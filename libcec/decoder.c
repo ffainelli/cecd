@@ -196,9 +196,12 @@ int libcec_decode_message(uint8_t* message, size_t length)
 		return LIBCEC_ERROR_INVALID_PARAM;
 	}
 
+	src = message[0] >> 4;
+	dst = message[0] & 0x0F;
+
 	// Polling Message
 	if (length == 1) {
-		ceci_info("  o %1X->%1X: <Polling Message>", src = message[0] >> 4, dst = message[0] & 0x0F);
+		ceci_info("  o %1X->%1X: <Polling Message>", src, dst);
 		return LIBCEC_SUCCESS;
 	}
 
@@ -206,12 +209,13 @@ int libcec_decode_message(uint8_t* message, size_t length)
 		ceci_warn("unsupported Opcode: %02X", message[1]);
 		return LIBCEC_ERROR_NOT_SUPPORTED;
 	}
+
 	if ( (length-2 < msg_min_max[msg_props[message[1]]&0x1F][0])
 	  || (length-2 > msg_min_max[msg_props[message[1]]&0x1F][1]) ) {
 		  ceci_warn("invalid payload length for opcode: %02X", message[1]);
 		  return LIBCEC_ERROR_INVALID_PARAM;
 	}
-	ceci_info("  o %1X->%1X: <%s>", src = message[0] >> 4, dst = message[0] & 0x0F,
+	ceci_info("  o %1X->%1X: <%s>", src, dst,
 			  msg_description[msg_index[message[1]]]);
 	display_buffer_hex(message+1, length-1);
 
