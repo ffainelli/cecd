@@ -210,6 +210,17 @@ int libcec_decode_message(uint8_t* message, size_t length)
 		return LIBCEC_ERROR_NOT_SUPPORTED;
 	}
 
+	// Broadcasted messages received as directed messages
+	if ((dst == 0x0F) && ((msg_props[message[1]] & 0x40) == 0)) {
+		ceci_warn("broadcast message received as directed: %02X", message[1]);
+		return LIBCEC_ERROR_OTHER;
+	}
+
+	if ((dst != 0x0F) && ((msg_props[message[1]] & 0x20) == 0)) {
+		ceci_warn("directed message received as broadcast: %02X", message[1]);
+		return LIBCEC_ERROR_OTHER;
+	}
+
 	if ( (length-2 < msg_min_max[msg_props[message[1]]&0x1F][0])
 	  || (length-2 > msg_min_max[msg_props[message[1]]&0x1F][1]) ) {
 		  ceci_warn("invalid payload length for opcode: %02X", message[1]);
