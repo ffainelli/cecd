@@ -962,6 +962,15 @@ int main(int argc, char** argv)
 			}
 			len = 0;
 			break;
+		case CEC_OP_ABORT:
+			// Only answer to abort if initiator address is not broadcast
+			if ((buffer[0] & 0x0f) == 0x0f)
+				break;
+			buffer[1] = CEC_OP_FEATURE_ABORT;
+			buffer[2] = CEC_ABORT_REFUSED;
+			len = 3;
+			break;
+
 		default:
 			// Convert to hash, to match against a conf file command
 			cec_unprocessed[cec_unprocessed_len++] = htab_hash(buffer+1, len-1, htab_cec, 0);
