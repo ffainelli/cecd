@@ -603,7 +603,7 @@ int main(int argc, char** argv)
 	uint16_t physical_address = 0xFFFF;
 	// TODO: check for seq_data overflow
 	uint16_t seq_data[CEC_MAX_COMMAND_SIZE], seq_len, ucp_unprocessed[CEC_MAX_COMMAND_SIZE], cec_unprocessed[CEC_MAX_COMMAND_SIZE];
-	uint8_t i, byte, buffer[CEC_MAX_COMMAND_SIZE];
+	uint8_t i, byte, buffer[CEC_MAX_COMMAND_SIZE], opcode = 0;
 	uint8_t ucp_unprocessed_len = 0, ucp_processed_len, cec_unprocessed_len = 0, cec_processed_len;
 	char *target_device, *device_name, *str = NULL, *saveptr = NULL, **key, *val;
 
@@ -891,10 +891,14 @@ int main(int argc, char** argv)
 			cecd_log("could not read message (error %d)\n", len);
 			continue;
 		}
-		libcec_decode_message(buffer, len);
+		r = libcec_decode_message(buffer, len);
 		if (len <= 1) {
 			// Ignore ACK, etc.
 			continue;
+		}
+		if (r != LIBCEC_SUCCESS) {
+			opcode = buffer[1];
+			buffer[1] = CEC_OP_ABORT;
 		}
 
 		buffer[0] >>= 4;	// Set whoever was talking to us as dest
@@ -967,8 +971,19 @@ int main(int argc, char** argv)
 			if ((buffer[0] & 0x0f) == 0x0f)
 				break;
 			buffer[1] = CEC_OP_FEATURE_ABORT;
-			buffer[2] = CEC_ABORT_REFUSED;
-			len = 3;
+			buffer[2] = opcode;
+			switch (r) {
+			case LIBCEC_ERROR_NOT_SUPPORTED:
+				buffer[3] = CEC_ABORT_UNRECOGNIZED;
+				break;
+			case LIBCEC_ERROR_INVALID_PARAM:
+				len = 0;
+				break;
+			default:
+				buffer[3] = CEC_ABORT_REFUSED;
+				break;
+			}
+			len = 4;
 			break;
 
 		default:
@@ -982,6 +997,7 @@ int main(int argc, char** argv)
 			len = 0;
 			break;
 		}
+
 		if (len) {
 			if (libcec_write_message(handle, buffer, len)) {
 				cecd_log("could not send message\n");
