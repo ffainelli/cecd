@@ -977,6 +977,7 @@ int main(int argc, char** argv)
 				buffer[3] = CEC_ABORT_UNRECOGNIZED;
 				break;
 			case LIBCEC_ERROR_INVALID_PARAM:
+			case LIBCEC_ERROR_OTHER:
 				len = 0;
 				break;
 			default:
