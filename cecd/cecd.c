@@ -39,7 +39,7 @@
 #include "profile.h"
 #include "profile_helpers.h"
 
-#define BROADCAST (device_type<<4 | 0x0F)
+#define BROADCAST (logical_address<<4 | 0x0F)
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
