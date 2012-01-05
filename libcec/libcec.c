@@ -243,7 +243,7 @@ int libcec_allocate_logical_address(libcec_device_handle* handle, uint8_t device
 		if (logical_address_table[logical_address] != device_type) {
 			continue;
 		}
-		polling_message = 0xF0 | logical_address;
+		polling_message = logical_address << 4 | logical_address;
 		ceci_dbg("querying logical address %d\n", logical_address);
 		if (libcec_write_message(handle, &polling_message, 1) != LIBCEC_SUCCESS) {
 			/* error on polling (no ACK) => assume address is free */
