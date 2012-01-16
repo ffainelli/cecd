@@ -519,7 +519,7 @@ typedef struct {
 #define CEC_UI_NUMBER_9				0x29
 #define CEC_UI_DOT					0x2A
 #define CEC_UI_ENTER				0x2B
-#define CEC_UI_CLEAR				0x2B
+#define CEC_UI_CLEAR				0x2C
 #define CEC_UI_NEXT_FAVORITE		0x2F
 #define CEC_UI_CHANNEL_UP			0x30
 #define CEC_UI_CHANNEL_DOWN			0x31
