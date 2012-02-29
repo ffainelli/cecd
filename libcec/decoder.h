@@ -254,6 +254,7 @@ typedef struct {
 #define CEC_ABORT_SOURCE_UNAVAIL	0x02
 #define CEC_ABORT_INVALID_OPERAND	0x03
 #define CEC_ABORT_REFUSED			0x04
+#define CEC_ABORT_UNABLE_TO_DETERMINE	0x05
 
 /* Analogue Broadcast Type */
 #define CEC_ANALOGTYPE_CABLE		0x00
